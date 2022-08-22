@@ -38,7 +38,7 @@ namespace LightReflectiveMirror
                 supportsDirectConnect = hostIP != null && useDirectConnect,
                 port = port,
                 useNATPunch = useNatPunch,
-                relayInfo = new RelayAddress { address = Program.publicIP, port = Program.conf.TransportPort, endpointPort = Program.conf.EndpointPort }
+                relayInfo = new RelayAddress { address = Program.publicIP, port = Program.conf.TransportPort, endpointPort = Program.conf.EndpointPort, serverRegion = Program.conf.LoadBalancerRegion }
             };
 
             rooms.Add(room);

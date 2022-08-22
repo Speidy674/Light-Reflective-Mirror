@@ -90,6 +90,7 @@ namespace LightReflectiveMirror.LoadBalancing
                             Logger.ForceLogMessage("Conflicting Rooms! (That's ok)", ConsoleColor.Yellow);
                 }
 
+                Logger.WriteLogMessage($"Try Calling CacheAllServers", ConsoleColor.Cyan);
                 CacheAllServers();
                 await context.Response.SendResponseAsync(HttpStatusCode.Ok);
             }
@@ -168,11 +169,17 @@ namespace LightReflectiveMirror.LoadBalancing
         {
             string region = context.Request.Headers["x-Region"];
 
-            if (int.TryParse(region, out int regionID))
+
+            if (int.TryParse("Info:" + region, out int regionID))
             {
+                Logger.WriteLogMessage("Send Servers, " + _regionRooms[(LRMRegions)regionID].Count, ConsoleColor.Cyan);
+                Logger.WriteLogMessage("Send Servers(Cached), " + _cachedRegionRooms[(LRMRegions)regionID], ConsoleColor.Cyan);
                 await context.Response.SendResponseAsync(_cachedRegionRooms[(LRMRegions)regionID]);
                 return;
             }
+
+            Logger.WriteLogMessage("Send Servers, "+_regionRooms[LRMRegions.Any].Count,ConsoleColor.Cyan);
+            Logger.WriteLogMessage("Send Servers(Cached), " + _cachedRegionRooms[LRMRegions.Any], ConsoleColor.Cyan);
 
             // They didnt submit a region header, just give them all servers as they probably are viewing in browser.
             await context.Response.SendResponseAsync(_cachedRegionRooms[LRMRegions.Any]);

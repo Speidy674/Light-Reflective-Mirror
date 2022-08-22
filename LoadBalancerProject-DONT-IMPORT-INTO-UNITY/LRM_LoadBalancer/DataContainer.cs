@@ -48,13 +48,10 @@ namespace LightReflectiveMirror.LoadBalancing
         public string serverName;
         public string serverData;
         public bool isPublic;
-        public int currentPlayers { get => clients.Count + 1; }
         public int maxPlayers;
 
-        [JsonIgnore]
-        public List<int> clients;
-
         public RelayAddress relayInfo;
+        public int currentPlayers;
     }
 
     public enum LRMRegions { Any, NorthAmerica, SouthAmerica, Europe, Asia, Africa, Oceania }

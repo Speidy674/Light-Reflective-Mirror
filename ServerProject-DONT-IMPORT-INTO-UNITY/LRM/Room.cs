@@ -39,5 +39,6 @@ namespace LightReflectiveMirror
         public ushort port;
         public ushort endpointPort;
         public string address;
+        public LRMRegions serverRegion;
     }
 }

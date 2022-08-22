@@ -1,4 +1,6 @@
-﻿using Newtonsoft.Json;
+﻿using LightReflectiveMirror.Debug;
+using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
@@ -9,8 +11,16 @@ namespace LightReflectiveMirror.LoadBalancing
     {
         static void CacheAllServers()
         {
+            Logger.WriteLogMessage($"CacheAllServers[{_regionRooms.Count}]", ConsoleColor.Cyan);
+
             foreach (var region in _regionRooms)
-                _cachedRegionRooms[region.Key] = JsonConvert.SerializeObject(region.Value);
+            {
+                Logger.WriteLogMessage($"CacheAllServers[{region.Key}][{region.Value.Count}]", ConsoleColor.Cyan);
+
+                _cachedRegionRooms[region.Key] = JsonConvert.SerializeObject(region.Value,Formatting.Indented);
+
+                Logger.WriteLogMessage($"CacheAllServers[{region.Key}][{region.Value.Count}] {_cachedRegionRooms[region.Key]}", ConsoleColor.Cyan);
+            }
         }
 
         static void ClearAllServersLists()
