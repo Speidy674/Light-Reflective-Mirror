@@ -166,10 +166,10 @@ public class LRMDirectConnectModule : MonoBehaviour
         lightMirrorTransport.DirectRemoveClient(clientID);
     }
 
-    void OnServerError(int client, Exception error)
+    void OnServerError(int connectionId, TransportError transportError, string reason)
     {
         if (showDebugLogs)
-            Debug.Log("Direct Server Error: " + error);
+            Debug.Log($"Direct Server Error: {transportError} Reason: {reason}");
     }
 
     void OnClientConnected()
@@ -190,10 +190,10 @@ public class LRMDirectConnectModule : MonoBehaviour
         lightMirrorTransport.DirectReceiveData(data, channel);
     }
 
-    void OnClientError(Exception error)
+    void OnClientError(TransportError transportError,string reason)
     {
         if (showDebugLogs)
-            Debug.Log("Direct Client Error: " + error);
+            Debug.Log($"Direct Client Error: {transportError} Reason: {reason}");
     }
 #endregion
 }

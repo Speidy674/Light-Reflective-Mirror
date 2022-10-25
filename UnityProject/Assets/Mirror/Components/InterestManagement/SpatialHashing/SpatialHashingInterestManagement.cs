@@ -6,13 +6,23 @@ using UnityEngine;
 
 namespace Mirror
 {
+    [AddComponentMenu("Network/ Interest Management/ Spatial Hash/Spatial Hashing Interest Management")]
     public class SpatialHashingInterestManagement : InterestManagement
     {
         [Tooltip("The maximum range that objects will be visible at.")]
         public int visRange = 30;
 
-        // if we see 8 neighbors then 1 entry is visRange/3
-        public int resolution => visRange / 3;
+        // we use a 9 neighbour grid.
+        // so we always see in a distance of 2 grids.
+        // for example, our own grid and then one on top / below / left / right.
+        //
+        // this means that grid resolution needs to be distance / 2.
+        // so for example, for distance = 30 we see 2 cells = 15 * 2 distance.
+        //
+        // on first sight, it seems we need distance / 3 (we see left/us/right).
+        // but that's not the case.
+        // resolution would be 10, and we only see 1 cell far, so 10+10=20.
+        public int resolution => visRange / 2;
 
         [Tooltip("Rebuild all every 'rebuildInterval' seconds.")]
         public float rebuildInterval = 1;
@@ -30,7 +40,7 @@ namespace Mirror
         public bool showSlider;
 
         // the grid
-        Grid2D<NetworkConnection> grid = new Grid2D<NetworkConnection>();
+        Grid2D<NetworkConnectionToClient> grid = new Grid2D<NetworkConnectionToClient>();
 
         // project 3d world position to grid position
         Vector2Int ProjectToGrid(Vector3 position) =>
@@ -38,7 +48,7 @@ namespace Mirror
             ? Vector2Int.RoundToInt(new Vector2(position.x, position.z) / resolution)
             : Vector2Int.RoundToInt(new Vector2(position.x, position.y) / resolution);
 
-        public override bool OnCheckObserver(NetworkIdentity identity, NetworkConnection newObserver)
+        public override bool OnCheckObserver(NetworkIdentity identity, NetworkConnectionToClient newObserver)
         {
             // calculate projected positions
             Vector2Int projected = ProjectToGrid(identity.transform.position);
@@ -51,7 +61,7 @@ namespace Mirror
             return (projected - observerProjected).sqrMagnitude <= 2;
         }
 
-        public override void OnRebuildObservers(NetworkIdentity identity, HashSet<NetworkConnection> newObservers, bool initialize)
+        public override void OnRebuildObservers(NetworkIdentity identity, HashSet<NetworkConnectionToClient> newObservers)
         {
             // add everyone in 9 neighbour grid
             // -> pass observers to GetWithNeighbours directly to avoid allocations
@@ -60,12 +70,19 @@ namespace Mirror
             grid.GetWithNeighbours(current, newObservers);
         }
 
+        [ServerCallback]
+        public override void Reset()
+        {
+            lastRebuildTime = 0D;
+        }
+
         // update everyone's position in the grid
         // (internal so we can update from tests)
+        [ServerCallback]
         internal void Update()
         {
-            // only on server
-            if (!NetworkServer.active) return;
+            // NOTE: unlike Scene/MatchInterestManagement, this rebuilds ALL
+            //       entities every INTERVAL. consider the other approach later.
 
             // IMPORTANT: refresh grid every update!
             // => newly spawned entities get observers assigned via
@@ -103,13 +120,15 @@ namespace Mirror
             // rebuild all spawned entities' observers every 'interval'
             // this will call OnRebuildObservers which then returns the
             // observers at grid[position] for each entity.
-            if (NetworkTime.time >= lastRebuildTime + rebuildInterval)
+            if (NetworkTime.localTime >= lastRebuildTime + rebuildInterval)
             {
                 RebuildAll();
-                lastRebuildTime = NetworkTime.time;
+                lastRebuildTime = NetworkTime.localTime;
             }
         }
 
+// OnGUI allocates even if it does nothing. avoid in release.
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         // slider from dotsnet. it's nice to play around with in the benchmark
         // demo.
         void OnGUI()
@@ -129,5 +148,6 @@ namespace Mirror
             GUILayout.EndHorizontal();
             GUILayout.EndArea();
         }
+#endif
     }
 }

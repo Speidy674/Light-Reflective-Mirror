@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace Mirror.Experimental
 {
-    [AddComponentMenu("Network/Experimental/NetworkRigidbody")]
+    [AddComponentMenu("Network/ Experimental/Network Rigidbody")]
     [HelpURL("https://mirror-networking.gitbook.io/docs/components/network-rigidbody")]
     public class NetworkRigidbody : NetworkBehaviour
     {
@@ -10,7 +10,7 @@ namespace Mirror.Experimental
         [SerializeField] internal Rigidbody target = null;
 
         [Tooltip("Set to true if moves come from owner client, set to false if moves always come from server")]
-        [SerializeField] bool clientAuthority = false;
+        public bool clientAuthority = false;
 
         [Header("Velocity")]
 

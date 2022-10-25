@@ -31,7 +31,20 @@ namespace Mirror
                 "MIRROR_37_0_OR_NEWER",
                 "MIRROR_38_0_OR_NEWER",
                 "MIRROR_39_0_OR_NEWER",
-                "MIRROR_40_0_OR_NEWER"
+                "MIRROR_40_0_OR_NEWER",
+                "MIRROR_41_0_OR_NEWER",
+                "MIRROR_42_0_OR_NEWER",
+                "MIRROR_43_0_OR_NEWER",
+                "MIRROR_44_0_OR_NEWER",
+                "MIRROR_46_0_OR_NEWER",
+                "MIRROR_47_0_OR_NEWER",
+                "MIRROR_53_0_OR_NEWER",
+                "MIRROR_55_0_OR_NEWER",
+                "MIRROR_57_0_OR_NEWER",
+                "MIRROR_58_0_OR_NEWER",
+                "MIRROR_65_0_OR_NEWER",
+                "MIRROR_66_0_OR_NEWER",
+                "MIRROR_2022_9_OR_NEWER"
             };
 
             // only touch PlayerSettings if we actually modified it.

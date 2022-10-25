@@ -34,6 +34,12 @@ public class LRMFunctionTest : MonoBehaviour
         NetworkManager.singleton.StartHost();
         yield return new WaitUntil(() => _LRM.serverId.Length > 4);
         DisplayText($"<color=lime>Room created! ID: {_LRM.serverId}</color>");
+        DisplayText("Requesting Server List...");
+        _LRM.RequestServerList();
+        yield return new WaitUntil(() => _serverListUpdated);
+        foreach (var server in _LRM.relayServerList)
+            DisplayText($"Got Server: {server.serverName}, {server.serverData}, {server.maxPlayers}");
+        _serverListUpdated = false;
         DisplayText("Requesting Server Data Change...");
         _LRM.UpdateRoomName("Updated Server Name");
         _LRM.UpdateRoomData("Updated Server Data");

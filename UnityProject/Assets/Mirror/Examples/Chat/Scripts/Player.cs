@@ -1,26 +1,30 @@
-using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Mirror.Examples.Chat
 {
     public class Player : NetworkBehaviour
     {
-        [SyncVar]
-        public string playerName;
+        internal static readonly HashSet<string> playerNames = new HashSet<string>();
 
-        public static event Action<Player, string> OnMessage;
+        [SerializeField, SyncVar]
+        internal string playerName;
 
-        [Command]
-        public void CmdSend(string message)
+        // RuntimeInitializeOnLoadMethod -> fast playmode without domain reload
+        [UnityEngine.RuntimeInitializeOnLoadMethod]
+        static void ResetStatics()
         {
-            if (message.Trim() != "")
-                RpcReceive(message.Trim());
+            playerNames.Clear();
         }
 
-        [ClientRpc]
-        public void RpcReceive(string message)
+        public override void OnStartServer()
         {
-            OnMessage?.Invoke(this, message);
+            playerName = (string)connectionToClient.authenticationData;
+        }
+
+        public override void OnStartLocalPlayer()
+        {
+            ChatUI.localPlayerName = playerName;
         }
     }
 }
