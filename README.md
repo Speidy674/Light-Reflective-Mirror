@@ -16,12 +16,14 @@
 LRM Node / MultiCompiled
 
 *new links comming soon*
+
 [![Docker Cloud Build Status](https://img.shields.io/docker/cloud/build/derekrs/lrm_node?style=for-the-badge)](https://hub.docker.com/r/derekrs/lrm_node)
 
 
 LoadBalancer 
 
 *new links comming soon*
+
 [![Docker Cloud Build Status](https://img.shields.io/docker/cloud/build/derekrs/lrm_loadbalancer?style=for-the-badge)](https://hub.docker.com/r/derekrs/lrm_loadbalancer) 
 
 
@@ -126,7 +128,7 @@ Run docker headless: `docker run -d -it --rm -p 8080:8080 -p 7777:7777/udp -p 77
 
 ## Credits
 
-Derek-R-S - which manted and developed it until v12.
+Derek-R-S - which maintained and developed it until v12.
 
 Cooper - Assisted with development and made some wonderful features! He's also active in the discord to help answer questions and help with issues.
 
