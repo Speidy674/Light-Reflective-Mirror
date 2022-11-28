@@ -6,25 +6,26 @@
 
 # Light Reflective Mirror
 
-[![Maintainability](https://api.codeclimate.com/v1/badges/954d1b30c2da8f61037e/maintainability)](https://codeclimate.com/github/Derek-R-S/Light-Reflective-Mirror/maintainability)
+![GitHub release (latest by SemVer)](https://img.shields.io/github/downloads/Speidy674/Light-Reflective-Mirror/latest/total)
+![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/speidy674/Light-Reflective-Mirror)
+![GitHub issues](https://img.shields.io/github/issues-raw/speidy674/Light-Reflective-Mirror)
+
+
+*build status comming soon again*
 
 LRM Node / MultiCompiled
 
-[![Build status](http://monk3.xyz:90/api/projects/status/p5g03jifksxvkjct/branch/main?retina=true)](http://monk3.xyz:90/project/AppVeyor/light-reflective-mirror/branch/main) 
-
+*new links comming soon*
 [![Docker Cloud Build Status](https://img.shields.io/docker/cloud/build/derekrs/lrm_node?style=for-the-badge)](https://hub.docker.com/r/derekrs/lrm_node)
 
 
 LoadBalancer 
 
-[![Build status](http://monk3.xyz:90/api/projects/status/kh6awelf16hl5um4/branch/main?retina=true)](http://monk3.xyz:90/project/AppVeyor/light-reflective-mirror-canqw/branch/main)
-
+*new links comming soon*
 [![Docker Cloud Build Status](https://img.shields.io/docker/cloud/build/derekrs/lrm_loadbalancer?style=for-the-badge)](https://hub.docker.com/r/derekrs/lrm_loadbalancer) 
 
 
 Unity Package
-
-[![Build status](http://monk3.xyz:90/api/projects/status/n7kiywl2ls67pn5c?retina=true)](http://monk3.xyz:90/project/AppVeyor/light-reflective-mirror-wdkoo)
 
 ## What
 Light Reflective Mirror is a transport for Mirror Networking which relays network traffic through your own servers. This allows you to have clients host game servers and not worry about NAT/Port Forwarding, etc. There are still features I plan on adding but it still is completely stable in its current state.
@@ -115,6 +116,8 @@ LRM is a self-hosted, open source, relay/NAT Punchthrough server. It's available
 
 ### Video Tutorial Commands
 
+*new docker images comming soon*
+
 Pull docker image: `docker pull derekrs/lrm_node:Bleeding-Edge`
 
 Run docker for config: `docker run -it --rm -v /root/:/config --name lrm-node derekrs/lrm_node:Bleeding-Edge`
@@ -122,6 +125,8 @@ Run docker for config: `docker run -it --rm -v /root/:/config --name lrm-node de
 Run docker headless: `docker run -d -it --rm -p 8080:8080 -p 7777:7777/udp -p 7776:7776/udp -v /root/:/config --name lrm-node derekrs/lrm_node:Bleeding-Edge`
 
 ## Credits
+
+Derek-R-S - which manted and developed it until v12.
 
 Cooper - Assisted with development and made some wonderful features! He's also active in the discord to help answer questions and help with issues.
 
