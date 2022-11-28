@@ -16,7 +16,7 @@ public class LRMTester : MonoBehaviour
     {
         if (_LRM == null)
         {
-            _LRM = (LightReflectiveMirrorTransport)Transport.activeTransport;
+            _LRM = (LightReflectiveMirrorTransport)Transport.active;
             _LRM.serverListUpdated.AddListener(OnServerListUpdated);
         }
     }

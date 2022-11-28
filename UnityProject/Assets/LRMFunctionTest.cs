@@ -13,7 +13,7 @@ public class LRMFunctionTest : MonoBehaviour
 
     void Start()
     {
-        _LRM = (LightReflectiveMirrorTransport)Transport.activeTransport;
+        _LRM = (LightReflectiveMirrorTransport)Transport.active;
         _LRM.serverListUpdated.AddListener(ServerListUpdated);
         StartCoroutine(TestLRM());
     }

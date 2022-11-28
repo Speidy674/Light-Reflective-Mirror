@@ -16,7 +16,7 @@ namespace Mirror.Experimental
         [Tooltip("Set to true if moves come from owner client, set to false if moves always come from server")]
         [SerializeField] bool clientAuthority = false;
 
-        float nextSyncTime;
+        double nextSyncTime;
 
 
         [SyncVar()]
@@ -31,7 +31,7 @@ namespace Mirror.Experimental
         /// <returns></returns>
         bool IgnoreSync => isServer || ClientWithAuthority;
 
-        bool ClientWithAuthority => clientAuthority && hasAuthority;
+        bool ClientWithAuthority => clientAuthority && isOwned;
 
         void OnValidate()
         {
@@ -61,7 +61,7 @@ namespace Mirror.Experimental
 
         void SendToServer()
         {
-            float now = Time.time;
+            double now = NetworkTime.localTime; // Unity 2019 doesn't have Time.timeAsDouble yet
             if (now > nextSyncTime)
             {
                 nextSyncTime = now + syncInterval;
