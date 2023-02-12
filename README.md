@@ -10,21 +10,14 @@
 ![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/speidy674/Light-Reflective-Mirror)
 ![GitHub issues](https://img.shields.io/github/issues-raw/speidy674/Light-Reflective-Mirror)
 
-
-*build status comming soon again*
-
 LRM Node / MultiCompiled
 
-*new links comming soon*
-
-[![Docker Cloud Build Status](https://img.shields.io/docker/cloud/build/derekrs/lrm_node?style=for-the-badge)](https://hub.docker.com/r/derekrs/lrm_node)
+[![Build Node](https://github.com/Speidy674/Light-Reflective-Mirror/actions/workflows/build-node.yml/badge.svg)](https://github.com/Speidy674/Light-Reflective-Mirror/actions/workflows/build-node.yml)
 
 
 LoadBalancer 
 
-*new links comming soon*
-
-[![Docker Cloud Build Status](https://img.shields.io/docker/cloud/build/derekrs/lrm_loadbalancer?style=for-the-badge)](https://hub.docker.com/r/derekrs/lrm_loadbalancer) 
+[![Build Load Balancer](https://github.com/Speidy674/Light-Reflective-Mirror/actions/workflows/build-loadbalancer.yml/badge.svg)](https://github.com/Speidy674/Light-Reflective-Mirror/actions/workflows/build-loadbalancer.yml)
 
 
 Unity Package

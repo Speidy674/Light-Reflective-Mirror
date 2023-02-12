@@ -4,10 +4,13 @@
 name: Build Node
 
 on:
+  pull_request:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    paths-ignore:
+      - '*.md'
+      - '*.yml'
+      - '*.txt'
 
 jobs:
   build-node:
