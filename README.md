@@ -19,9 +19,6 @@ LoadBalancer
 
 [![Build Load Balancer](https://github.com/Speidy674/Light-Reflective-Mirror/actions/workflows/build-loadbalancer.yml/badge.svg)](https://github.com/Speidy674/Light-Reflective-Mirror/actions/workflows/build-loadbalancer.yml)
 
-
-Unity Package
-
 ## What
 Light Reflective Mirror is a transport for Mirror Networking which relays network traffic through your own servers. This allows you to have clients host game servers and not worry about NAT/Port Forwarding, etc. There are still features I plan on adding but it still is completely stable in its current state.
 
