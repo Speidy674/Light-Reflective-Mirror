@@ -10,7 +10,7 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
+  build-node:
 
     runs-on: ubuntu-latest
 
@@ -32,5 +32,9 @@ jobs:
     - name: Upload LRM
       uses: actions/upload-artifact@v3
       with:
-        name: my-artifact
-        path: ServerProject-DONT-IMPORT-INTO-UNITY/LRM/bin/Debug/
+        name: LRM-Node
+        path: |
+          ServerProject-DONT-IMPORT-INTO-UNITY/LRM/bin/Debug/**/LRM.dll
+          ServerProject-DONT-IMPORT-INTO-UNITY/LRM/bin/Debug/**/LRM.runtimeconfig.json
+          ServerProject-DONT-IMPORT-INTO-UNITY/\MultiCompiled/bin/Debug/**/MultiCompiled.dll
+          
