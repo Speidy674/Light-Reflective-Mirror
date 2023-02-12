@@ -26,8 +26,12 @@ namespace Mirror.SimpleWeb
                 string key = Convert.ToBase64String(keyBuffer);
                 string keySum = key + Constants.HandshakeGUID;
                 byte[] keySumBytes = Encoding.ASCII.GetBytes(keySum);
-                Log.Verbose($"Handshake Hashing {Encoding.ASCII.GetString(keySumBytes)}");
+                Log.Verbose($"[SimpleWebTransport] Handshake Hashing {Encoding.ASCII.GetString(keySumBytes)}");
 
+                // SHA-1 is the websocket standard:
+                // https://www.rfc-editor.org/rfc/rfc6455
+                // we should follow the standard, even though SHA1 is considered weak:
+                // https://stackoverflow.com/questions/38038841/why-is-sha-1-considered-insecure
                 byte[] keySumHash = SHA1.Create().ComputeHash(keySumBytes);
 
                 string expectedResponse = Convert.ToBase64String(keySumHash);
@@ -48,7 +52,7 @@ namespace Mirror.SimpleWeb
 
                 if (!lengthOrNull.HasValue)
                 {
-                    Log.Error("Connected closed before handshake");
+                    Log.Error("[SimpleWebTransport] Connected closed before handshake");
                     return false;
                 }
 
@@ -61,7 +65,7 @@ namespace Mirror.SimpleWeb
 
                 if (responseKey != expectedResponse)
                 {
-                    Log.Error($"Response key incorrect, Response:{responseKey} Expected:{expectedResponse}");
+                    Log.Error($"[SimpleWebTransport] Response key incorrect, Response:{responseKey} Expected:{expectedResponse}");
                     return false;
                 }
 

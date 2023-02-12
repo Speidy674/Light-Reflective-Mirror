@@ -53,6 +53,7 @@ namespace LightReflectiveMirror
                     conf.UseEndpoint = bool.Parse(Environment.GetEnvironmentVariable("USE_ENDPOINT") ?? "true");
                     conf.EndpointPort = ushort.Parse(Environment.GetEnvironmentVariable("ENDPOINT_PORT") ?? "8080");
                     conf.EndpointServerList = bool.Parse(Environment.GetEnvironmentVariable("ENDPOINT_SERVERLIST") ?? "true");
+                    conf.EndpointSSL = bool.Parse(Environment.GetEnvironmentVariable("ENDPOINT_SSL") ?? "false");
                     conf.EnableNATPunchtroughServer = bool.Parse(Environment.GetEnvironmentVariable("ENABLE_NATPUNCH_SERVER") ?? "true");
                     conf.NATPunchtroughPort = ushort.Parse(Environment.GetEnvironmentVariable("NAT_PUNCH_PORT") ?? "7776");
                     conf.UseLoadBalancer = bool.Parse(Environment.GetEnvironmentVariable("USE_LOAD_BALANCER") ?? "false");

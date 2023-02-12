@@ -94,7 +94,7 @@ namespace LightReflectiveMirror.Endpoints
 
     public class EndpointServer
     {
-        public bool Start(ushort port = 8080)
+        public bool Start(ushort port = 8080,bool ssl = false)
         {
             try
             {
@@ -110,7 +110,14 @@ namespace LightReflectiveMirror.Endpoints
                     services.Configure<LoggerFilterOptions>(options => options.MinLevel = LogLevel.None);
                 }, (server) =>
                 {
-                    server.Prefixes.Add($"http://*:{port}/");
+                    if (ssl)
+                    {
+                        server.Prefixes.Add($"https://*:{port}/");
+                    }
+                    else
+                    {
+                        server.Prefixes.Add($"http://*:{port}/");
+                    }
                 }).Build();
 
                 server.Router.Options.SendExceptionMessages = false;

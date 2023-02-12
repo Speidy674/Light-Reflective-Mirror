@@ -261,6 +261,7 @@ namespace LightReflectiveMirror
 
         public override void Shutdown()
         {
+            DisconnectFromRelay();
             _isAuthenticated = false;
             _isClient = false;
             _isServer = false;

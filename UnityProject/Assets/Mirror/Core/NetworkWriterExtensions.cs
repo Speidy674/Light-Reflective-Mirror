@@ -239,8 +239,7 @@ namespace Mirror
                 writer.WriteUInt(0);
                 return;
             }
-            NetworkIdentity identity = value.GetComponent<NetworkIdentity>();
-            if (identity != null)
+            if (value.TryGetComponent(out NetworkIdentity identity))
             {
                 writer.WriteUInt(identity.netId);
             }
@@ -260,8 +259,7 @@ namespace Mirror
             }
 
             // warn if the GameObject doesn't have a NetworkIdentity,
-            NetworkIdentity identity = value.GetComponent<NetworkIdentity>();
-            if (identity == null)
+            if (!value.TryGetComponent(out NetworkIdentity identity))
                 Debug.LogWarning($"NetworkWriter {value} has no NetworkIdentity");
 
             // serialize the correct amount of data in any case to make sure
@@ -269,6 +267,10 @@ namespace Mirror
             writer.WriteNetworkIdentity(identity);
         }
 
+        // while SyncList<T> is recommended for NetworkBehaviours,
+        // structs may have .List<T> members which weaver needs to be able to
+        // fully serialize for NetworkMessages etc.
+        // note that Weaver/Writers/GenerateWriter() handles this manually.
         public static void WriteList<T>(this NetworkWriter writer, List<T> list)
         {
             if (list is null)
@@ -280,6 +282,25 @@ namespace Mirror
             for (int i = 0; i < list.Count; i++)
                 writer.Write(list[i]);
         }
+
+        // while SyncSet<T> is recommended for NetworkBehaviours,
+        // structs may have .Set<T> members which weaver needs to be able to
+        // fully serialize for NetworkMessages etc.
+        // note that Weaver/Writers/GenerateWriter() handles this manually.
+        // TODO writer not found. need to adjust weaver first. see tests.
+        /*
+        public static void WriteHashSet<T>(this NetworkWriter writer, HashSet<T> hashSet)
+        {
+            if (hashSet is null)
+            {
+                writer.WriteInt(-1);
+                return;
+            }
+            writer.WriteInt(hashSet.Count);
+            foreach (T item in hashSet)
+                writer.Write(item);
+        }
+        */
 
         public static void WriteArray<T>(this NetworkWriter writer, T[] array)
         {

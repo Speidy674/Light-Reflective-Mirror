@@ -21,7 +21,6 @@ namespace Mirror.SimpleWeb
         readonly BufferPool bufferPool;
         readonly ConcurrentDictionary<int, Connection> connections = new ConcurrentDictionary<int, Connection>();
 
-
         int _idCounter = 0;
 
         public WebSocketServer(TcpConfig tcpConfig, int maxMessageSize, int handshakeMaxSize, SslConfig sslConfig, BufferPool bufferPool)
@@ -38,7 +37,7 @@ namespace Mirror.SimpleWeb
             listener = TcpListener.Create(port);
             listener.Start();
 
-            Log.Info($"Server has started on port {port}");
+            Log.Info($"[SimpleWebTransport] Server has started on port {port}", false);
 
             acceptThread = new Thread(acceptLoop);
             acceptThread.IsBackground = true;
@@ -54,13 +53,11 @@ namespace Mirror.SimpleWeb
             listener?.Stop();
             acceptThread = null;
 
-            Log.Info("Server stopped, Closing all connections...");
+            Log.Info("[SimpleWebTransport] Server stopped, Closing all connections...", false);
             // make copy so that foreach doesn't break if values are removed
             Connection[] connectionsCopy = connections.Values.ToArray();
             foreach (Connection conn in connectionsCopy)
-            {
                 conn.Dispose();
-            }
 
             connections.Clear();
         }
@@ -81,7 +78,7 @@ namespace Mirror.SimpleWeb
                         //      this might not be a problem as HandshakeAndReceiveLoop checks for stop
                         //      and returns/disposes before sending message to queue
                         Connection conn = new Connection(client, AfterConnectionDisposed);
-                        Log.Info($"A client connected {conn}");
+                        Log.Info($"[SimpleWebTransport] A client connected {conn}", false);
 
                         // handshake needs its own thread as it needs to wait for message from client
                         Thread receiveThread = new Thread(() => HandshakeAndReceiveLoop(conn));
@@ -111,7 +108,7 @@ namespace Mirror.SimpleWeb
                 bool success = sslHelper.TryCreateStream(conn);
                 if (!success)
                 {
-                    Log.Error($"Failed to create SSL Stream {conn}");
+                    Log.Error($"[SimpleWebTransport] Failed to create SSL Stream {conn}, false");
                     conn.Dispose();
                     return;
                 }
@@ -120,11 +117,11 @@ namespace Mirror.SimpleWeb
 
                 if (success)
                 {
-                    Log.Info($"Sent Handshake {conn}");
+                    Log.Info($"[SimpleWebTransport] Sent Handshake {conn}, false");
                 }
                 else
                 {
-                    Log.Error($"Handshake Failed {conn}");
+                    Log.Error($"[SimpleWebTransport] Handshake Failed {conn}, false");
                     conn.Dispose();
                     return;
                 }
@@ -132,7 +129,7 @@ namespace Mirror.SimpleWeb
                 // check if Stop has been called since accepting this client
                 if (serverStopped)
                 {
-                    Log.Info("Server stops after successful handshake");
+                    Log.Info("[SimpleWebTransport] Server stops after successful handshake", false);
                     return;
                 }
 
@@ -153,7 +150,7 @@ namespace Mirror.SimpleWeb
 
                 conn.sendThread = sendThread;
                 sendThread.IsBackground = true;
-                sendThread.Name = $"SendLoop {conn.connId}";
+                sendThread.Name = $"[SimpleWebTransport] SendLoop {conn.connId}, false";
                 sendThread.Start();
 
                 ReceiveLoop.Config receiveConfig = new ReceiveLoop.Config(
@@ -193,7 +190,7 @@ namespace Mirror.SimpleWeb
             }
             else
             {
-                Log.Warn($"Cant send message to {id} because connection was not found in dictionary. Maybe it disconnected.");
+                Log.Warn($"[SimpleWebTransport] Cant send message to {id} because connection was not found in dictionary. Maybe it disconnected.", false);
             }
         }
 
@@ -201,13 +198,13 @@ namespace Mirror.SimpleWeb
         {
             if (connections.TryGetValue(id, out Connection conn))
             {
-                Log.Info($"Kicking connection {id}");
+                Log.Info($"[SimpleWebTransport] Kicking connection {id}", false);
                 conn.Dispose();
                 return true;
             }
             else
             {
-                Log.Warn($"Failed to kick {id} because id not found");
+                Log.Warn($"[SimpleWebTransport] Failed to kick {id} because id not found", false);
 
                 return false;
             }
@@ -221,7 +218,7 @@ namespace Mirror.SimpleWeb
             }
             else
             {
-                Log.Error($"Cant get address of connection {id} because connection was not found in dictionary");
+                Log.Error($"[SimpleWebTransport] Cant get address of connection {id} because connection was not found in dictionary", false);
                 return null;
             }
         }

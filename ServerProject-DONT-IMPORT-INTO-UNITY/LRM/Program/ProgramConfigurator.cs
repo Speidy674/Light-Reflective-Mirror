@@ -59,6 +59,7 @@ namespace LightReflectiveMirror
             transport.OnServerDataReceived = _relay.HandleMessage;
             transport.OnServerDisconnected = (clientID) =>
             {
+                WriteLogMessage($"Transport disconnected, Client: {clientID}", ConsoleColor.Cyan);
                 _currentConnections.Remove(clientID);
                 _relay.HandleDisconnect(clientID);
 
@@ -79,9 +80,9 @@ namespace LightReflectiveMirror
             WriteLogMessage("\nStarting Endpoint Service... ", ConsoleColor.White, true);
             var endpointService = new EndpointServer();
 
-            if (endpointService.Start(conf.EndpointPort))
+            if (endpointService.Start(conf.EndpointPort,conf.EndpointSSL))
             {
-                WriteLogMessage("OK", ConsoleColor.Green);
+                WriteLogMessage("OK", ConsoleColor.Green,true);
                 Endpoint.RoomsModified();
             }
             else
