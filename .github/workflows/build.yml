@@ -33,4 +33,4 @@ jobs:
       uses: actions/checkout@v3
       with:
         name: my-artifact
-        path: ServerProject-DONT-IMPORT-INTO-UNITY/LRM/bin/Debug/
+        path: ServerProject-DONT-IMPORT-INTO-UNITY/MultiCompiled/bin/Debug/
