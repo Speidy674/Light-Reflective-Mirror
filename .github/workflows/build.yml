@@ -29,8 +29,8 @@ jobs:
     - name: Test
       run: dotnet test --no-build --verbosity normal
       working-directory: ServerProject-DONT-IMPORT-INTO-UNITY
-    - name: Upload
-      uses: actions/checkout@v3
+    - name: Upload LRM
+      uses: actions/upload-artifact@v3
       with:
         name: my-artifact
-        path: ServerProject-DONT-IMPORT-INTO-UNITY/MultiCompiled/bin/Debug/
+        path: ServerProject-DONT-IMPORT-INTO-UNITY/LRM/bin/Debug/
