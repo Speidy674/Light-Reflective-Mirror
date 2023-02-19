@@ -11,7 +11,7 @@ on:
       - '*.md'
 
 jobs:
-  build-node:
+  build-loadbalancer:
 
     runs-on: ubuntu-latest
 
