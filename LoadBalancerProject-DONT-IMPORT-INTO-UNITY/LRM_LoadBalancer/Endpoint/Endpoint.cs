@@ -15,7 +15,7 @@ using HttpStatusCode = Grapevine.HttpStatusCode;
 namespace LightReflectiveMirror.LoadBalancing
 {
 
-    [RestResource]
+    [RestResource(BasePath = "/api/")]
     public partial class Endpoint
     {
         /// <summary>
@@ -24,7 +24,7 @@ namespace LightReflectiveMirror.LoadBalancing
         /// </summary>
         /// <param name="context"></param>
         /// <returns></returns>
-        [RestRoute("Get", "/api/auth")]
+        [RestRoute("Get", "/auth")]
         public async Task ReceiveAuthKey(IHttpContext context)
         {
             var req = context.Request;
@@ -65,7 +65,7 @@ namespace LightReflectiveMirror.LoadBalancing
         /// </summary>
         /// <param name="context"></param>
         /// <returns></returns>
-        [RestRoute("Get", "/api/roomsupdated")]
+        [RestRoute("Get", "/roomsupdated")]
         public async Task ServerListUpdate(IHttpContext context)
         {
             // Dont allow unauthorizated access waste computing resources.
@@ -104,7 +104,7 @@ namespace LightReflectiveMirror.LoadBalancing
         /// </summary>
         /// <param name="context"></param>
         /// <returns></returns>
-        [RestRoute("Get", "/api/join/")]
+        [RestRoute("Get", "/join/")]
         public async Task JoinRelay(IHttpContext context)
         {
             // need to copy over in order to avoid
@@ -147,7 +147,7 @@ namespace LightReflectiveMirror.LoadBalancing
             await context.Response.SendResponseAsync(low.Key.address != "Dummy" ? JsonConvert.SerializeObject(low.Key) : HttpStatusCode.InternalServerError);
         }
 
-        [RestRoute("Options", "/api/join/")]
+        [RestRoute("Options", "/join/")]
         public async Task JoinRelayOptions(IHttpContext context)
         {
             var originHeaders = context.Request.Headers["Access-Control-Request-Headers"];
@@ -164,7 +164,7 @@ namespace LightReflectiveMirror.LoadBalancing
         /// </summary>
         /// <param name="context"></param>
         /// <returns></returns>
-        [RestRoute("Get", "/api/masterlist/")]
+        [RestRoute("Get", "/masterlist/")]
         public async Task GetMasterServerList(IHttpContext context)
         {
             string region = context.Request.Headers["x-Region"];
@@ -185,7 +185,7 @@ namespace LightReflectiveMirror.LoadBalancing
             await context.Response.SendResponseAsync(_cachedRegionRooms[LRMRegions.Any]);
         }
 
-        [RestRoute("Options", "/api/masterlist/")]
+        [RestRoute("Options", "/masterlist/")]
         public async Task GetMasterServerListOptions(IHttpContext context)
         {
             var originHeaders = context.Request.Headers["Access-Control-Request-Headers"];
@@ -202,13 +202,13 @@ namespace LightReflectiveMirror.LoadBalancing
         /// </summary>
         /// <param name="context"></param>
         /// <returns></returns>
-        [RestRoute("Get", "/api/stats/")]
+        [RestRoute("Get", "/stats/")]
         public async Task GetStats(IHttpContext context)
         {
             await context.Response.SendResponseAsync(JsonConvert.SerializeObject(_stats));
         }
 
-        [RestRoute("Get", "/api/get/id")]
+        [RestRoute("Get", "/get/id")]
         public async Task GetServerID(IHttpContext context)
         {
             await context.Response.SendResponseAsync(Program.instance.GenerateServerID());
