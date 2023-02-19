@@ -20,7 +20,7 @@ namespace LightReflectiveMirror.Endpoints
         public TimeSpan Uptime;
     }
 
-    [RestResource]
+    [RestResource(BasePath = "/api/")]
     public class Endpoint
     {
         private static string _cachedServerList = "[]";
@@ -46,7 +46,7 @@ namespace LightReflectiveMirror.Endpoints
                 Program.instance.UpdateLoadBalancerServers();
         }
 
-        [RestRoute("Get", "/api/stats")]
+        [RestRoute("Get", "/stats")]
         public async Task Stats(IHttpContext context)
         {
             lastPing = DateTime.Now;
@@ -54,7 +54,7 @@ namespace LightReflectiveMirror.Endpoints
             await context.Response.SendResponseAsync(json);
         }
 
-        [RestRoute("Get", "/api/servers")]
+        [RestRoute("Get", "/servers")]
         public async Task ServerList(IHttpContext context)
         {
             if (Program.conf.EndpointServerList)
@@ -65,7 +65,7 @@ namespace LightReflectiveMirror.Endpoints
                 await context.Response.SendResponseAsync(HttpStatusCode.Forbidden);
         }
 
-        [RestRoute("Get", "/api/compressed/servers")]
+        [RestRoute("Get", "/compressed/servers")]
         public async Task ServerListCompressed(IHttpContext context)
         {
             context.Response.Headers.Add("Access-Control-Allow-Origin", "*");
@@ -79,7 +79,7 @@ namespace LightReflectiveMirror.Endpoints
                 await context.Response.SendResponseAsync(HttpStatusCode.Forbidden);
         }
 
-        [RestRoute("Options", "/api/compressed/servers")]
+        [RestRoute("Options", "/compressed/servers")]
         public async Task ServerListCompressedOptions(IHttpContext context)
         {
             var originHeaders = context.Request.Headers["Access-Control-Request-Headers"];

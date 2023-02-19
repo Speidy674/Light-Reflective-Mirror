@@ -80,7 +80,7 @@ namespace LightReflectiveMirror
             WriteLogMessage("\nStarting Endpoint Service... ", ConsoleColor.White, true);
             var endpointService = new EndpointServer();
 
-            if (endpointService.Start(conf.EndpointPort,conf.EndpointSSL))
+            if (endpointService.Start(conf.EndpointPort))
             {
                 WriteLogMessage("OK", ConsoleColor.Green,true);
                 Endpoint.RoomsModified();
