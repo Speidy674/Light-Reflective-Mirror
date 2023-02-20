@@ -68,7 +68,9 @@ namespace LightReflectiveMirror
                                              data.ReadBool  (ref pos), 
                                              data.ReadString(ref pos), 
                                              data.ReadBool  (ref pos), 
-                                             data.ReadInt   (ref pos));
+                                             data.ReadInt   (ref pos),
+                                             data.ReadInt   (ref pos),
+                                             data.ReadString(ref pos));
                         break;
                     case OpCodes.RequestID:
                         SendClientID(clientId);

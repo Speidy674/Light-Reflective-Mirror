@@ -305,6 +305,7 @@ namespace LightReflectiveMirror
                         EditorGUILayout.TextField("Server Status", lrm.serverStatus);
                         EditorGUILayout.TextField("Server ID", string.IsNullOrEmpty(lrm.serverId) ? "Not Hosting." : lrm.serverId);
                         GUI.enabled = true;
+                        lrm.appId = EditorGUILayout.IntField("App ID", lrm.appId);
 
                         EditorGUILayout.Space();
 

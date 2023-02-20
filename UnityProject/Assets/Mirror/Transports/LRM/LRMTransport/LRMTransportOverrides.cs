@@ -222,6 +222,9 @@ namespace LightReflectiveMirror
                 _clientSendBuffer.WriteInt(ref pos, _directConnectModule == null ? 1 : _directConnectModule.SupportsNATPunch() ? _directConnectModule.GetTransportPort() : 1);
             }
 
+            _clientSendBuffer.WriteInt(ref pos, appId);
+            _clientSendBuffer.WriteString(ref pos, Application.version);
+
             clientToServerTransport.ClientSend(new ArraySegment<byte>(_clientSendBuffer, 0, pos), 0);
         }
 

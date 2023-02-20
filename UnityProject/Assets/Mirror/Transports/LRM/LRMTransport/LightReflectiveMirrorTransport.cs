@@ -448,6 +448,8 @@ namespace LightReflectiveMirror
         public string serverId;
         public string serverData;
         public int hostId;
+        public int appId;
+        public string version;
         public List<int> clients;
         public int currentPlayers;
         public RelayAddress relayInfo;

@@ -19,7 +19,7 @@ namespace LightReflectiveMirror
         /// <param name="hostLocalIP">The hosts local IP</param>
         /// <param name="useNatPunch">Whether or not, the host is supporting NAT Punch</param>
         /// <param name="port">The port of the direct connect transport on the host</param>
-        private void CreateRoom(int clientId, int maxPlayers, string serverName, bool isPublic, string serverData, bool useDirectConnect, string hostLocalIP, bool useNatPunch, int port)
+        private void CreateRoom(int clientId, int maxPlayers, string serverName, bool isPublic, string serverData, bool useDirectConnect, string hostLocalIP, bool useNatPunch, int port,int appId, string version)
         {
             LeaveRoom(clientId);
             Program.instance.NATConnections.TryGetValue(clientId, out IPEndPoint hostIP);
@@ -31,6 +31,8 @@ namespace LightReflectiveMirror
                 serverName = serverName,
                 isPublic = isPublic,
                 serverData = serverData,
+                appId = appId,
+                version = version,
                 clients = new List<int>(),
                 serverId = GetRandomServerID(),
                 hostIP = hostIP,

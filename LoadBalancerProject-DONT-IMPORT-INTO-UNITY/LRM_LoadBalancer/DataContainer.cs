@@ -49,6 +49,8 @@ namespace LightReflectiveMirror.LoadBalancing
         public string serverData;
         public bool isPublic;
         public int maxPlayers;
+        public int appId;
+        public string version;
 
         public RelayAddress relayInfo;
         public int currentPlayers;

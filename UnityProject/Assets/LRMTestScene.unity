@@ -368,12 +368,10 @@ MonoBehaviour:
   Interval: 10
   Timeout: 10000
   FastResend: 2
-  CongestionWindow: 0
   SendWindowSize: 4096
   ReceiveWindowSize: 4096
   MaxRetransmit: 40
-  NonAlloc: 1
-  MaximizeSendReceiveBuffersToOSLimit: 1
+  MaximizeSocketBuffers: 1
   ReliableMaxMessageSize: 298449
   UnreliableMaxMessageSize: 1199
   debugLog: 0
@@ -1196,12 +1194,10 @@ MonoBehaviour:
   Interval: 10
   Timeout: 10000
   FastResend: 2
-  CongestionWindow: 0
   SendWindowSize: 4096
   ReceiveWindowSize: 4096
   MaxRetransmit: 40
-  NonAlloc: 1
-  MaximizeSendReceiveBuffersToOSLimit: 1
+  MaximizeSocketBuffers: 1
   ReliableMaxMessageSize: 298449
   UnreliableMaxMessageSize: 1199
   debugLog: 0
@@ -1288,7 +1284,8 @@ MonoBehaviour:
   dontDestroyOnLoad: 1
   runInBackground: 1
   autoStartServerBuild: 1
-  serverTickRate: 30
+  autoConnectClientBuild: 0
+  sendRate: 30
   offlineScene: 
   onlineScene: 
   transport: {fileID: 1282001522}
@@ -1301,6 +1298,7 @@ MonoBehaviour:
   playerSpawnMethod: 1
   spawnPrefabs:
   - {fileID: 5890560936853567077, guid: b7dd46dbf38c643f09e206f9fa4be008, type: 3}
+  timeInterpolationGui: 0
 --- !u!114 &1282001521
 MonoBehaviour:
   m_ObjectHideFlags: 0
