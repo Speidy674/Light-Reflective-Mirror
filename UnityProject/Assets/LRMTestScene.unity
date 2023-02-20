@@ -1352,6 +1352,7 @@ MonoBehaviour:
       m_Calls: []
   serverStatus: Not Started.
   serverId: 
+  appId: 42
   region: 1
 --- !u!1 &1458789072
 GameObject:

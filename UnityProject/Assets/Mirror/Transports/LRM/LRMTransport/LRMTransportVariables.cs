@@ -45,7 +45,7 @@ namespace LightReflectiveMirror
         // Current Server Information
         public string serverStatus = "Not Started.";
         public string serverId = string.Empty;
-        public int appId = 0;
+        public int appId = -1;
 
         private LRMDirectConnectModule _directConnectModule;
 

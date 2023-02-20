@@ -255,19 +255,21 @@ namespace LightReflectiveMirror
                         serializedObject.ApplyModifiedProperties();
                         break;
                     case 1:
-                        // NAT punch tab.
-                        if (directModule == null)
+                        using (var change = new EditorGUI.ChangeCheckScope())
                         {
-                            EditorGUILayout.HelpBox("NAT Punchthrough disabled, missing Direct Connect.", MessageType.Info);
-                            if (GUILayout.Button("Add Direct Connect"))
-                                lrm.gameObject.AddComponent<LRMDirectConnectModule>();
-                        }
-                        else
-                        {
-#if !IGNORANCE
-                            if (!(directModule.directConnectTransport is KcpTransport))
+                            // NAT punch tab.
+                            if (directModule == null)
                             {
-                                EditorGUILayout.HelpBox("NAT Punch only supports KCP currently.", MessageType.Info);
+                                EditorGUILayout.HelpBox("NAT Punchthrough disabled, missing Direct Connect.", MessageType.Info);
+                                if (GUILayout.Button("Add Direct Connect"))
+                                    lrm.gameObject.AddComponent<LRMDirectConnectModule>();
+                            }
+                            else
+                            {
+#if !IGNORANCE
+                                if (!(directModule.directConnectTransport is KcpTransport))
+                                {
+                                    EditorGUILayout.HelpBox("NAT Punch only supports KCP currently.", MessageType.Info);
 #else
                             bool isSupported = (directModule.directConnectTransport is KcpTransport) ||
                                                (directModule.directConnectTransport is IgnoranceTransport.Ignorance);
@@ -276,49 +278,68 @@ namespace LightReflectiveMirror
                             {
                                 EditorGUILayout.HelpBox("NAT Punch only supports KCP and Ignorance currently.", MessageType.Info);
 #endif
-                                GUI.enabled = false;
-                                lrm.useNATPunch = false;
-                            }
+                                    GUI.enabled = false;
+                                    lrm.useNATPunch = false;
+                                }
 
-                            lrm.useNATPunch = EditorGUILayout.Toggle("Use NAT Punch", lrm.useNATPunch);
-                            GUI.enabled = true;
-                            directModule.directConnectTransport = (Transport)EditorGUILayout.ObjectField("Direct Transport", directModule.directConnectTransport, typeof(Transport), true);
+                                lrm.useNATPunch = EditorGUILayout.Toggle("Use NAT Punch", lrm.useNATPunch);
+                                GUI.enabled = true;
+                                directModule.directConnectTransport = (Transport)EditorGUILayout.ObjectField("Direct Transport", directModule.directConnectTransport, typeof(Transport), true);
+                            }
+                            if (change.changed)
+                            {
+                                EditorUtility.SetDirty(lrm);
+                            }
                         }
                         serializedObject.ApplyModifiedProperties();
                         break;
                     case 2:
-                        // Load balancer tab
-                        lrm.useLoadBalancer = EditorGUILayout.Toggle("Use Load Balancer", lrm.useLoadBalancer);
-                        if (!lrm.useLoadBalancer)
-                            GUI.enabled = false;
-                        lrm.loadBalancerAddress = EditorGUILayout.TextField("Load Balancer Address", lrm.loadBalancerAddress);
-                        lrm.loadBalancerPort = (ushort)Mathf.Clamp(EditorGUILayout.IntField("Load Balancer Port", lrm.loadBalancerPort), ushort.MinValue, ushort.MaxValue);
-                        lrm.region = (LRMRegions)EditorGUILayout.EnumPopup("Node Region", lrm.region);
-                        if (!lrm.useLoadBalancer)
-                            GUI.enabled = true;
+                        using (var change = new EditorGUI.ChangeCheckScope())
+                        {
+                            // Load balancer tab
+                            lrm.useLoadBalancer = EditorGUILayout.Toggle("Use Load Balancer", lrm.useLoadBalancer);
+                            if (!lrm.useLoadBalancer)
+                                GUI.enabled = false;
+                            lrm.loadBalancerAddress = EditorGUILayout.TextField("Load Balancer Address", lrm.loadBalancerAddress);
+                            lrm.loadBalancerPort = (ushort)Mathf.Clamp(EditorGUILayout.IntField("Load Balancer Port", lrm.loadBalancerPort), ushort.MinValue, ushort.MaxValue);
+                            lrm.region = (LRMRegions)EditorGUILayout.EnumPopup("Node Region", lrm.region);
+                            if (!lrm.useLoadBalancer)
+                                GUI.enabled = true;
+                            if (change.changed)
+                            {
+                                EditorUtility.SetDirty(lrm);
+                            }
+                        }
                         serializedObject.ApplyModifiedProperties();
                         break;
                     case 3:
-                        // Other tab...
+                        using (var change = new EditorGUI.ChangeCheckScope())
+                        {
+                            // Other tab...
 
-                        GUI.enabled = false;
-                        EditorGUILayout.TextField("Server Status", lrm.serverStatus);
-                        EditorGUILayout.TextField("Server ID", string.IsNullOrEmpty(lrm.serverId) ? "Not Hosting." : lrm.serverId);
-                        GUI.enabled = true;
-                        lrm.appId = EditorGUILayout.IntField("App ID", lrm.appId);
+                            GUI.enabled = false;
+                            EditorGUILayout.TextField("Server Status", lrm.serverStatus);
+                            EditorGUILayout.TextField("Server ID", string.IsNullOrEmpty(lrm.serverId) ? "Not Hosting." : lrm.serverId);
+                            GUI.enabled = true;
+                            lrm.appId = EditorGUILayout.IntField("App ID", lrm.appId);
 
-                        EditorGUILayout.Space();
+                            EditorGUILayout.Space();
 
-                        lrm.serverName = EditorGUILayout.TextField("Server Name", lrm.serverName);
-                        lrm.extraServerData = EditorGUILayout.TextField("Extra Server Data", lrm.extraServerData);
-                        lrm.maxServerPlayers = EditorGUILayout.IntField("Max Server Players", lrm.maxServerPlayers);
-                        lrm.isPublicServer = EditorGUILayout.Toggle("Is Public Server", lrm.isPublicServer);
+                            lrm.serverName = EditorGUILayout.TextField("Server Name", lrm.serverName);
+                            lrm.extraServerData = EditorGUILayout.TextField("Extra Server Data", lrm.extraServerData);
+                            lrm.maxServerPlayers = EditorGUILayout.IntField("Max Server Players", lrm.maxServerPlayers);
+                            lrm.isPublicServer = EditorGUILayout.Toggle("Is Public Server", lrm.isPublicServer);
 
-                        EditorGUILayout.Space();
-                        EditorGUILayout.Space();
-                        EditorGUILayout.PropertyField(serializedObject.FindProperty("connectedToRelay"));
-                        EditorGUILayout.PropertyField(serializedObject.FindProperty("disconnectedFromRelay"));
-                        EditorGUILayout.PropertyField(serializedObject.FindProperty("serverListUpdated"));
+                            EditorGUILayout.Space();
+                            EditorGUILayout.Space();
+                            EditorGUILayout.PropertyField(serializedObject.FindProperty("connectedToRelay"));
+                            EditorGUILayout.PropertyField(serializedObject.FindProperty("disconnectedFromRelay"));
+                            EditorGUILayout.PropertyField(serializedObject.FindProperty("serverListUpdated"));
+                            if (change.changed)
+                            {
+                                EditorUtility.SetDirty(lrm);
+                            }
+                        }
                         serializedObject.ApplyModifiedProperties();
                         break;
                 }
@@ -327,4 +348,4 @@ namespace LightReflectiveMirror
         }
     }
 #endif
-    }
+}
