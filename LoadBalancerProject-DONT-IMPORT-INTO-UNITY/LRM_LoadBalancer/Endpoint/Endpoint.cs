@@ -85,6 +85,14 @@ namespace LightReflectiveMirror.LoadBalancing
                     _regionRooms[LRMRegions.Any].AddRange(requestedRooms);
                     _regionRooms[relays[i].Key.serverRegion].AddRange(requestedRooms);
 
+                    List<List<Room>> _appRooms = requestedRooms.GroupBy(x => x.appId).Select(grp => grp.ToList()).ToList();
+
+                    _appRooms.ForEach((rooms) =>
+                    {
+                        string jsonRooms = JsonConvert.SerializeObject(rooms, Formatting.Indented);
+                        _regionRoomsAppId[LRMRegions.Any].Add(rooms.First().appId, rooms);
+                    });
+
                     for (int x = 0; x < requestedRooms.Count; x++)
                         if (!Program.cachedRooms.TryAdd(requestedRooms[x].serverId, requestedRooms[x]))
                             Logger.ForceLogMessage("Conflicting Rooms! (That's ok)", ConsoleColor.Yellow);
@@ -172,17 +180,34 @@ namespace LightReflectiveMirror.LoadBalancing
 
             if (int.TryParse("Info:" + region, out int regionID))
             {
-                Logger.WriteLogMessage("Send Servers, " + _regionRooms[(LRMRegions)regionID].Count, ConsoleColor.Cyan);
-                Logger.WriteLogMessage("Send Servers(Cached), " + _cachedRegionRooms[(LRMRegions)regionID], ConsoleColor.Cyan);
                 await context.Response.SendResponseAsync(_cachedRegionRooms[(LRMRegions)regionID]);
                 return;
             }
 
-            Logger.WriteLogMessage("Send Servers, "+_regionRooms[LRMRegions.Any].Count,ConsoleColor.Cyan);
-            Logger.WriteLogMessage("Send Servers(Cached), " + _cachedRegionRooms[LRMRegions.Any], ConsoleColor.Cyan);
-
             // They didnt submit a region header, just give them all servers as they probably are viewing in browser.
             await context.Response.SendResponseAsync(_cachedRegionRooms[LRMRegions.Any]);
+        }
+
+        /// <summary>
+        /// Returns all the servers from AppId on all the relay nodes.
+        /// </summary>
+        /// <param name="context"></param>
+        /// <returns></returns>
+        [RestRoute("Get", "/masterlist/{appId:num}")]
+        public async Task GetMasterServerListApp(IHttpContext context)
+        {
+            string region = context.Request.Headers["x-Region"];
+            int appId = int.Parse(context.Request.PathParameters["appId"]);
+
+
+            if (int.TryParse("Info:" + region, out int regionID))
+            {
+                await context.Response.SendResponseAsync(_cachedRegionRoomsAppId[(LRMRegions)regionID].GetValueOrDefault(appId,"[]"));
+                return;
+            }
+
+            // They didnt submit a region header, just give them all servers as they probably are viewing in browser.
+            await context.Response.SendResponseAsync(_cachedRegionRoomsAppId[LRMRegions.Any].GetValueOrDefault(appId, "[]"));
         }
 
         [RestRoute("Options", "/masterlist/")]
@@ -220,6 +245,9 @@ namespace LightReflectiveMirror.LoadBalancing
             {
                 _regionRooms.Add(region, new());
                 _cachedRegionRooms.Add(region, "[]");
+
+                _regionRoomsAppId.Add(region, new());
+                _cachedRegionRoomsAppId.Add(region, new());
             }
         }
     }

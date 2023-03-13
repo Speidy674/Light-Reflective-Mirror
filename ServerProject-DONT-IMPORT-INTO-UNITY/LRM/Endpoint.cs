@@ -7,6 +7,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace LightReflectiveMirror.Endpoints
@@ -23,24 +24,44 @@ namespace LightReflectiveMirror.Endpoints
     [RestResource(BasePath = "/api/")]
     public class Endpoint
     {
+
+        private static Dictionary<int,string> _cachedServerListAppId = new ();
+        private static Dictionary<int, string> _cachedCompressedServerListAppId = new ();
+
+
         private static string _cachedServerList = "[]";
         private static string _cachedCompressedServerList;
         public static DateTime lastPing = DateTime.Now;
 
         private static List<Room> _rooms { get => Program.instance.GetRooms().Where(x => x.isPublic).ToList(); }
+        private static List<List<Room>> _appRooms { get => Program.instance.GetRooms().GroupBy(x => x.appId).Select(grp => grp.ToList()).ToList(); }
 
-        private RelayStats _stats { get => new()
+        private RelayStats _stats
         {
-            ConnectedClients = Program.instance.GetConnections(),
-            RoomCount = Program.instance.GetRooms().Count,
-            PublicRoomCount = Program.instance.GetPublicRoomCount(),
-            Uptime = Program.instance.GetUptime()
-        }; }
+            get => new()
+            {
+                ConnectedClients = Program.instance.GetConnections(),
+                RoomCount = Program.instance.GetRooms().Count,
+                PublicRoomCount = Program.instance.GetPublicRoomCount(),
+                Uptime = Program.instance.GetUptime()
+            };
+        }
 
         public static void RoomsModified()
         {
             _cachedServerList = JsonConvert.SerializeObject(_rooms, Formatting.Indented);
             _cachedCompressedServerList = _cachedServerList.Compress();
+
+            _cachedServerListAppId.Clear();
+            _cachedCompressedServerListAppId.Clear();
+
+            _appRooms.ForEach((rooms) =>
+            {
+                string jsonRooms = JsonConvert.SerializeObject(rooms, Formatting.Indented);
+                _cachedServerListAppId.Add(rooms.First().appId, jsonRooms);
+                _cachedCompressedServerListAppId.Add(rooms.First().appId, jsonRooms.Compress());
+            });
+
 
             if (Program.conf.UseLoadBalancer)
                 Program.instance.UpdateLoadBalancerServers();
@@ -65,6 +86,18 @@ namespace LightReflectiveMirror.Endpoints
                 await context.Response.SendResponseAsync(HttpStatusCode.Forbidden);
         }
 
+        [RestRoute("Get", "/servers/{appId:num}")]
+        public async Task ServerListAppId(IHttpContext context)
+        {
+            if (Program.conf.EndpointServerList)
+            {
+                int appId = int.Parse(context.Request.PathParameters["appId"]);
+                await context.Response.SendResponseAsync(_cachedServerListAppId.GetValueOrDefault(appId, "[]"));
+            }
+            else
+                await context.Response.SendResponseAsync(HttpStatusCode.Forbidden);
+        }
+
         [RestRoute("Get", "/compressed/servers")]
         public async Task ServerListCompressed(IHttpContext context)
         {
@@ -74,6 +107,21 @@ namespace LightReflectiveMirror.Endpoints
             if (Program.conf.EndpointServerList)
             {
                 await context.Response.SendResponseAsync(_cachedCompressedServerList);
+            }
+            else
+                await context.Response.SendResponseAsync(HttpStatusCode.Forbidden);
+        }
+
+        [RestRoute("Get", "/compressed/servers/{appId:num}")]
+        public async Task ServerListCompressedAppId(IHttpContext context)
+        {
+            context.Response.Headers.Add("Access-Control-Allow-Origin", "*");
+            context.Response.Headers.Add("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+
+            if (Program.conf.EndpointServerList)
+            {
+                int appId = int.Parse(context.Request.PathParameters["appId"]);
+                await context.Response.SendResponseAsync(_cachedCompressedServerListAppId.GetValueOrDefault(appId,"[]".Compress()));
             }
             else
                 await context.Response.SendResponseAsync(HttpStatusCode.Forbidden);
@@ -94,7 +142,7 @@ namespace LightReflectiveMirror.Endpoints
 
     public class EndpointServer
     {
-        public bool Start(ushort port = 8080,bool ssl = false)
+        public bool Start(ushort port = 8080, bool ssl = false)
         {
             try
             {
@@ -103,7 +151,7 @@ namespace LightReflectiveMirror.Endpoints
                 .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
                 .Build();
 
-                var server = new RestServerBuilder(new ServiceCollection(), config, 
+                var server = new RestServerBuilder(new ServiceCollection(), config,
                 (services) =>
                 {
                     services.AddLogging(configure => configure.AddConsole());

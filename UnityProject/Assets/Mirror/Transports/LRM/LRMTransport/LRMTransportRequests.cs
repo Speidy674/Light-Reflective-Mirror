@@ -122,7 +122,7 @@ namespace LightReflectiveMirror
         {
             if (!useLoadBalancer)
             {
-                string uri = $"http://{serverIP}:{endpointServerPort}/api/compressed/servers";
+                string uri = $"http://{serverIP}:{endpointServerPort}/api/compressed/servers/{appId}";
 
                 using (UnityWebRequest webRequest = UnityWebRequest.Get(uri))
                 {
@@ -179,7 +179,7 @@ namespace LightReflectiveMirror
         /// <returns></returns>
         IEnumerator RetrieveMasterServerListFromLoadBalancer(LRMRegions region)
         {
-            string uri = $"http://{loadBalancerAddress}:{loadBalancerPort}/api/masterlist/";
+            string uri = $"http://{loadBalancerAddress}:{loadBalancerPort}/api/masterlist/{appId}";
 
             using (UnityWebRequest webRequest = UnityWebRequest.Get(uri))
             {

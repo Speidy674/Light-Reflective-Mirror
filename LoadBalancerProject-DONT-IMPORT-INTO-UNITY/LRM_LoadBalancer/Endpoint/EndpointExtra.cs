@@ -11,15 +11,17 @@ namespace LightReflectiveMirror.LoadBalancing
     {
         static void CacheAllServers()
         {
-            Logger.WriteLogMessage($"CacheAllServers[{_regionRooms.Count}]", ConsoleColor.Cyan);
-
             foreach (var region in _regionRooms)
             {
-                Logger.WriteLogMessage($"CacheAllServers[{region.Key}][{region.Value.Count}]", ConsoleColor.Cyan);
-
                 _cachedRegionRooms[region.Key] = JsonConvert.SerializeObject(region.Value,Formatting.Indented);
+            }
 
-                Logger.WriteLogMessage($"CacheAllServers[{region.Key}][{region.Value.Count}] {_cachedRegionRooms[region.Key]}", ConsoleColor.Cyan);
+            foreach (var region in _regionRoomsAppId)
+            {
+                foreach(var appId in region.Value)
+                {
+                    _cachedRegionRoomsAppId[region.Key][appId.Key] = JsonConvert.SerializeObject(appId.Value, Formatting.Indented);
+                }
             }
         }
 
@@ -27,6 +29,12 @@ namespace LightReflectiveMirror.LoadBalancing
         {
             foreach (var region in _regionRooms)
                 region.Value.Clear();
+
+            foreach (var regionAppId in _regionRoomsAppId)
+                regionAppId.Value.Clear();
+
+            foreach (var regionAppId in _cachedRegionRoomsAppId)
+                regionAppId.Value.Clear();
         }
     }
 

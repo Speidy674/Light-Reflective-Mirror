@@ -16,6 +16,9 @@ namespace LightReflectiveMirror.LoadBalancing
         private static Dictionary<LRMRegions, List<Room>> _regionRooms = new();
         private static Dictionary<LRMRegions, string> _cachedRegionRooms = new();
 
+        private static Dictionary<LRMRegions, Dictionary<int,List<Room>>> _regionRoomsAppId = new();
+        private static Dictionary<LRMRegions, Dictionary<int,string>> _cachedRegionRoomsAppId = new();
+
         private LoadBalancerStats _stats
         {
             get => new()
