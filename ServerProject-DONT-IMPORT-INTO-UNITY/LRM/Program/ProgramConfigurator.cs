@@ -60,7 +60,11 @@ namespace LightReflectiveMirror
             transport.OnServerDisconnected = (clientID) =>
             {
                 WriteLogMessage($"Transport disconnected, Client: {clientID}", ConsoleColor.Cyan);
+                
+                //Disconnect player
+                TryRemoveUniqueId(clientID);
                 _currentConnections.Remove(clientID);
+                
                 _relay.HandleDisconnect(clientID);
 
                 if (NATConnections.ContainsKey(clientID))
