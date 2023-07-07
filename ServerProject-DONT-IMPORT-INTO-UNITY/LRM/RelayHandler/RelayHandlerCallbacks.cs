@@ -27,48 +27,33 @@ namespace LightReflectiveMirror
         /// <param name="channel">The channel the client sent the data on</param>
         public void HandleMessage(int clientId, ArraySegment<byte> segmentData, int channel)
         {
-            OpCodes opcode = OpCodes.Default;
-            
             try
             {
                 var data = segmentData.Array;
                 int pos = segmentData.Offset;
 
-                opcode = (OpCodes)data.ReadByte(ref pos);
+                OpCodes opcode = (OpCodes)data.ReadByte(ref pos);
 
                 if (_pendingAuthentication.Contains(clientId))
                 {
                     if (opcode == OpCodes.AuthenticationResponse)
                     {
                         string authResponse = data.ReadString(ref pos);
-                        string firebaseToken = data.ReadString(ref pos);
-
-                        if (authResponse != Program.conf.AuthenticationKey)
+                        if (authResponse == Program.conf.AuthenticationKey)
+                        {
+                            _pendingAuthentication.Remove(clientId);
+                            int writePos = 0;
+                            var sendBuffer = _sendBuffers.Rent(1);
+                            sendBuffer.WriteByte(ref writePos, (byte)OpCodes.Authenticated);
+                            Program.transport.ServerSend(clientId, 0, new ArraySegment<byte>(sendBuffer, 0, writePos));
+                            
+                            _sendBuffers.Return(sendBuffer);
+                        }
+                        else
                         {
                             Program.WriteLogMessage($"Client {clientId} sent wrong auth key! Removing from LRM node.");
                             Program.transport.ServerDisconnect(clientId);
                         }
-                        
-                        // Later retrieve firebase id from firebase token
-                        string uniqueId = firebaseToken;
-                        
-                        // Check if the client is already connected to this node.
-                        if (Program.instance.IsClientConnected(uniqueId))
-                        {
-                            Program.WriteLogMessage($"Client {clientId} is already connected to this node! Removing from LRM node.");
-                            Program.transport.ServerDisconnect(clientId);
-                            return;
-                        }
-
-                        _pendingAuthentication.Remove(clientId);
-                        Program.instance.AssignUniqueId(uniqueId, clientId);
-                        
-                        int writePos = 0;
-                        var sendBuffer = _sendBuffers.Rent(1);
-                        sendBuffer.WriteByte(ref writePos, (byte)OpCodes.Authenticated);
-                        Program.transport.ServerSend(clientId, 0, new ArraySegment<byte>(sendBuffer, 0, writePos));
-                            
-                        _sendBuffers.Return(sendBuffer);
                     }
                     return;
                 }
@@ -127,7 +112,7 @@ namespace LightReflectiveMirror
             catch
             {
                 // sent invalid data, boot them hehe
-                Program.WriteLogMessage($"Client {clientId} sent bad data! Removing from LRM node. Last OpCode: {opcode}");
+                Program.WriteLogMessage($"Client {clientId} sent bad data! Removing from LRM node.");
                 Program.transport.ServerDisconnect(clientId);
             }
         }

@@ -23,7 +23,6 @@ namespace LightReflectiveMirror
         private DateTime _startupTime;
         public static string publicIP;
         private List<int> _currentConnections = new();
-        private BiDictionary<string, int> _uniqueIdToClientId = new();
         public Dictionary<int, IPEndPoint> NATConnections = new();
         private BiDictionary<int, string> _pendingNATPunches = new();
         private int _currentHeartbeatTimer = 0;

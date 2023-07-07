@@ -159,9 +159,8 @@ namespace LightReflectiveMirror
                         Program.transport.ServerSend(rooms[i].clients[x], 0, new ArraySegment<byte>(sendBuffer, 0, pos));
                         _cachedClientRooms.Remove(rooms[i].clients[x]);
                     }
-                    
+
                     _sendBuffers.Return(sendBuffer);
-                    
                     rooms[i].clients.Clear();
                     _cachedRooms.Remove(rooms[i].serverId);
                     rooms.RemoveAt(i);
@@ -179,21 +178,20 @@ namespace LightReflectiveMirror
                     {
                         int pos = 0;
                         byte[] sendBuffer = _sendBuffers.Rent(5);
-                        
+
                         sendBuffer.WriteByte(ref pos, (byte)OpCodes.PlayerDisconnected);
                         sendBuffer.WriteInt(ref pos, clientId);
 
-                        // Tell host that client disconnected
                         Program.transport.ServerSend(rooms[i].hostId, 0, new ArraySegment<byte>(sendBuffer, 0, pos));
                         _sendBuffers.Return(sendBuffer);
 
                         // temporary solution to kicking bug
+                        // this tells the local player that got kicked that he, well, got kicked.
                         pos = 0;
                         sendBuffer = _sendBuffers.Rent(1);
 
                         sendBuffer.WriteByte(ref pos, (byte)OpCodes.ServerLeft);
 
-                        // Tell the player that he got kicked
                         Program.transport.ServerSend(clientId, 0, new ArraySegment<byte>(sendBuffer, 0, pos));
                         _sendBuffers.Return(sendBuffer);
 
