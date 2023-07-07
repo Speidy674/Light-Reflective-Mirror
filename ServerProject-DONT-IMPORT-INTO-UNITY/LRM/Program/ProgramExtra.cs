@@ -10,36 +10,6 @@ namespace LightReflectiveMirror
         public int GetConnections() => _currentConnections.Count;
         public TimeSpan GetUptime() => DateTime.Now - _startupTime;
         public int GetPublicRoomCount() => _relay.rooms.Where(x => x.isPublic).Count();
-        
-        /// <summary>
-        /// Assigns unique id for client id
-        /// </summary>
-        /// <param name="uniqueId">Unique id that is assigned to a client</param>
-        /// <param name="clientId">Client id that was generated for this connection</param>
-        public void AssignUniqueId(string uniqueId, int clientId)
-        {
-            _uniqueIdToClientId.Add(uniqueId, clientId);
-        }
-        
-        /// <summary>
-        /// Tries to remove unique id from the dictionary
-        /// </summary>
-        /// <param name="clientId"> Client id that was generated for this connection </param>
-        public void TryRemoveUniqueId(int clientId)
-        {
-            if (_uniqueIdToClientId.TryGetBySecond(clientId, out string uniqueId))
-                _uniqueIdToClientId.Remove(uniqueId);
-        }
-        
-        /// <summary>
-        /// Checks if unique id is assigned to a client
-        /// </summary>
-        /// <param name="uniqueId"> Unique id that is assigned to a client </param>
-        /// <returns> True if unique id is assigned to a client, false if not </returns>
-        public bool IsClientConnected(string uniqueId)
-        {
-            return _uniqueIdToClientId.TryGetByFirst(uniqueId, out _);
-        }
 
         public static void WriteLogMessage(string message, ConsoleColor color = ConsoleColor.White, bool oneLine = false)
         {
