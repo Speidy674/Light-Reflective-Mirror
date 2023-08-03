@@ -34,7 +34,14 @@ namespace LightReflectiveMirror.Endpoints
         public static DateTime lastPing = DateTime.Now;
 
         private static List<Room> _rooms { get => Program.instance.GetRooms().Where(x => x.isPublic).ToList(); }
-        private static List<List<Room>> _appRooms { get => Program.instance.GetRooms().GroupBy(x => x.appId).Select(grp => grp.ToList()).ToList(); }
+        private static List<List<Room>> _appRooms 
+        { 
+            get => Program.instance.GetRooms()
+                .Where(x => x.isPublic)
+                .GroupBy(x => x.appId)
+                .Select(grp => grp.ToList())
+                .ToList(); 
+        }
 
         private RelayStats _stats
         {
