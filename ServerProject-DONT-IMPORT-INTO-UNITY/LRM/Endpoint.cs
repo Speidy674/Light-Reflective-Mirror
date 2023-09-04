@@ -102,6 +102,7 @@ namespace LightReflectiveMirror.Endpoints
         public async Task ServerListCompressed(IHttpContext context)
         {
             context.Response.Headers.Add("Access-Control-Allow-Origin", "*");
+            context.Response.Headers.Add("Access-Control-Allow-Headers", "Accept, X-Access-Token, X-Application-Name, X-Request-Sent-Time");
             context.Response.Headers.Add("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
 
             if (Program.conf.EndpointServerList)
@@ -116,6 +117,7 @@ namespace LightReflectiveMirror.Endpoints
         public async Task ServerListCompressedAppId(IHttpContext context)
         {
             context.Response.Headers.Add("Access-Control-Allow-Origin", "*");
+            context.Response.Headers.Add("Access-Control-Allow-Headers", "Accept, X-Access-Token, X-Application-Name, X-Request-Sent-Time");
             context.Response.Headers.Add("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
 
             if (Program.conf.EndpointServerList)
@@ -133,6 +135,7 @@ namespace LightReflectiveMirror.Endpoints
             var originHeaders = context.Request.Headers["Access-Control-Request-Headers"];
 
             context.Response.Headers.Add("Access-Control-Allow-Origin", "*");
+            context.Response.Headers.Add("Access-Control-Allow-Headers", "Accept, X-Access-Token, X-Application-Name, X-Request-Sent-Time");
             context.Response.Headers.Add("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
             context.Response.Headers.Add("Access-Control-Allow-Headers", originHeaders);
 

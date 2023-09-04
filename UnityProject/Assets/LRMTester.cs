@@ -39,7 +39,6 @@ public class LRMTester : MonoBehaviour
 
         for(int i = 0; i < _LRM.relayServerList.Count; i++)
         {
-            print(_LRM.relayServerList[i].relayInfo.address + " ADDRESS");
 
             var serverEntry = Instantiate(serverListEntry, serverListParent);
 
