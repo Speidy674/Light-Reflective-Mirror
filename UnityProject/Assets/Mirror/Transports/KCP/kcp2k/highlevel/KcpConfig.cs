@@ -13,12 +13,21 @@ namespace kcp2k
         // (Nintendo Switch, etc.)
         public bool DualMode;
 
-        // attempt to maximize socket send/recv buffers to OS limit.
-        // too small send/receive buffers might cause connection drops under
-        // heavy load. using the OS max size can make a difference already.
-        public bool MaximizeSocketBuffers;
+        // UDP servers use only one socket.
+        // maximize buffer to handle as many connections as possible.
+        //
+        //   M1 mac pro:
+        //     recv buffer default: 786896 (771 KB)
+        //     send buffer default:  9216 (9 KB)
+        //     max configurable: ~7 MB
+        public int RecvBufferSize;
+        public int SendBufferSize;
 
         // kcp configuration ///////////////////////////////////////////////////
+        // configurable MTU in case kcp sits on top of other abstractions like
+        // encrypted transports, relays, etc.
+        public int Mtu;
+
         // NoDelay is recommended to reduce latency. This also scales better
         // without buffers getting full.
         public bool NoDelay;
@@ -58,19 +67,23 @@ namespace kcp2k
         // constructor with defaults for convenience.
         // makes it easy to define "new KcpConfig(DualMode=false)" etc.
         public KcpConfig(
-            bool DualMode              = true,
-            bool MaximizeSocketBuffers = false,
-            bool NoDelay               = true,
-            uint Interval              = 10,
-            int FastResend             = 0,
-            bool CongestionWindow      = false,
-            uint SendWindowSize        = Kcp.WND_SND,
-            uint ReceiveWindowSize     = Kcp.WND_RCV,
-            int Timeout                = KcpPeer.DEFAULT_TIMEOUT,
-            uint MaxRetransmits        = Kcp.DEADLINK)
+            bool DualMode          = true,
+            int RecvBufferSize     = 1024 * 1024 * 7,
+            int SendBufferSize     = 1024 * 1024 * 7,
+            int Mtu                = Kcp.MTU_DEF,
+            bool NoDelay           = true,
+            uint Interval          = 10,
+            int FastResend         = 0,
+            bool CongestionWindow  = false,
+            uint SendWindowSize    = Kcp.WND_SND,
+            uint ReceiveWindowSize = Kcp.WND_RCV,
+            int Timeout            = KcpPeer.DEFAULT_TIMEOUT,
+            uint MaxRetransmits    = Kcp.DEADLINK)
         {
             this.DualMode = DualMode;
-            this.MaximizeSocketBuffers = MaximizeSocketBuffers;
+            this.RecvBufferSize = RecvBufferSize;
+            this.SendBufferSize = SendBufferSize;
+            this.Mtu = Mtu;
             this.NoDelay = NoDelay;
             this.Interval = Interval;
             this.FastResend = FastResend;

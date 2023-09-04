@@ -15,6 +15,21 @@ namespace kcp2k
         // kcp reliability algorithm
         internal Kcp kcp;
 
+        // security cookie to prevent UDP spoofing.
+        // credits to IncludeSec for disclosing the issue.
+        //
+        // server passes the expected cookie to the client's KcpPeer.
+        // KcpPeer sends cookie to the connected client.
+        // KcpPeer only accepts packets which contain the cookie.
+        // => cookie can be a random number, but it needs to be cryptographically
+        //    secure random that can't be easily predicted.
+        // => cookie can be hash(ip, port) BUT only if salted to be not predictable
+        readonly uint cookie;
+
+        // this is the cookie that the other end received during handshake.
+        // store byte[] representation to avoid runtime int->byte[] conversions.
+        internal readonly byte[] receivedCookie = new byte[4];
+
         // IO agnostic
         readonly Action<ArraySegment<byte>> RawSend;
 
@@ -44,10 +59,12 @@ namespace kcp2k
         // Unity's time.deltaTime over long periods.
         readonly Stopwatch watch = new Stopwatch();
 
-        // we need to subtract the channel byte from every MaxMessageSize
-        // calculation.
+        // we need to subtract the channel and cookie bytes from every
+        // MaxMessageSize calculation.
         // we also need to tell kcp to use MTU-1 to leave space for the byte.
         const int CHANNEL_HEADER_SIZE = 1;
+        const int COOKIE_HEADER_SIZE = 4;
+        const int METADATA_SIZE = CHANNEL_HEADER_SIZE + COOKIE_HEADER_SIZE;
 
         // reliable channel (= kcp) MaxMessageSize so the outside knows largest
         // allowed message to send. the calculation in Send() is not obvious at
@@ -71,19 +88,20 @@ namespace kcp2k
         //               for batching.
         //            => sending UNRELIABLE max message size most of the time is
         //               best for performance (use that one for batching!)
-        static int ReliableMaxMessageSize_Unconstrained(uint rcv_wnd) =>
-            (Kcp.MTU_DEF - Kcp.OVERHEAD - CHANNEL_HEADER_SIZE) * ((int)rcv_wnd - 1) - 1;
+        static int ReliableMaxMessageSize_Unconstrained(int mtu, uint rcv_wnd) =>
+            (mtu - Kcp.OVERHEAD - METADATA_SIZE) * ((int)rcv_wnd - 1) - 1;
 
         // kcp encodes 'frg' as 1 byte.
         // max message size can only ever allow up to 255 fragments.
         //   WND_RCV gives 127 fragments.
         //   WND_RCV * 2 gives 255 fragments.
         // so we can limit max message size by limiting rcv_wnd parameter.
-        public static int ReliableMaxMessageSize(uint rcv_wnd) =>
-            ReliableMaxMessageSize_Unconstrained(Math.Min(rcv_wnd, Kcp.FRG_MAX));
+        public static int ReliableMaxMessageSize(int mtu, uint rcv_wnd) =>
+            ReliableMaxMessageSize_Unconstrained(mtu, Math.Min(rcv_wnd, Kcp.FRG_MAX));
 
         // unreliable max message size is simply MTU - channel header size
-        public const int UnreliableMaxMessageSize = Kcp.MTU_DEF - CHANNEL_HEADER_SIZE;
+        public static int UnreliableMaxMessageSize(int mtu) =>
+            mtu - METADATA_SIZE;
 
         // buffer to receive kcp's processed messages (avoids allocations).
         // IMPORTANT: this is for KCP messages. so it needs to be of size:
@@ -97,7 +115,7 @@ namespace kcp2k
         readonly byte[] kcpSendBuffer;// = new byte[1 + ReliableMaxMessageSize];
 
         // raw send buffer is exactly MTU.
-        readonly byte[] rawSendBuffer = new byte[Kcp.MTU_DEF];
+        readonly byte[] rawSendBuffer;
 
         // send a ping occasionally so we don't time out on the other end.
         // for example, creating a character in an MMO could easily take a
@@ -138,6 +156,10 @@ namespace kcp2k
         public uint MaxSendRate    => kcp.snd_wnd * kcp.mtu * 1000 / kcp.interval;
         public uint MaxReceiveRate => kcp.rcv_wnd * kcp.mtu * 1000 / kcp.interval;
 
+        // calculate max message sizes based on mtu and wnd only once
+        public readonly int unreliableMax;
+        public readonly int reliableMax;
+
         // SetupKcp creates and configures a new KCP instance.
         // => useful to start from a fresh state every time the client connects
         // => NoDelay, interval, wnd size are the most important configurations.
@@ -148,7 +170,8 @@ namespace kcp2k
             Action<ArraySegment<byte>, KcpChannel> OnData,
             Action OnDisconnected,
             Action<ErrorCode, string> OnError,
-            KcpConfig config)
+            KcpConfig config,
+            uint cookie)
         {
             // initialize callbacks first to ensure they can be used safely.
             this.OnAuthenticated = OnAuthenticated;
@@ -160,6 +183,9 @@ namespace kcp2k
             // set up kcp over reliable channel (that's what kcp is for)
             kcp = new Kcp(0, RawSendReliable);
 
+            // security cookie
+            this.cookie = cookie;
+
             // set nodelay.
             // note that kcp uses 'nocwnd' internally so we negate the parameter
             kcp.SetNoDelay(config.NoDelay ? 1u : 0u, config.Interval, config.FastResend, !config.CongestionWindow);
@@ -169,15 +195,22 @@ namespace kcp2k
             // message. so while Kcp.MTU_DEF is perfect, we actually need to
             // tell kcp to use MTU-1 so we can still put the header into the
             // message afterwards.
-            kcp.SetMtu(Kcp.MTU_DEF - CHANNEL_HEADER_SIZE);
+            kcp.SetMtu((uint)config.Mtu - METADATA_SIZE);
+
+            // create mtu sized send buffer
+            rawSendBuffer = new byte[config.Mtu];
+
+            // calculate max message sizes once
+            unreliableMax = UnreliableMaxMessageSize(config.Mtu);
+            reliableMax = ReliableMaxMessageSize(config.Mtu, config.ReceiveWindowSize);
 
             // set maximum retransmits (aka dead_link)
             kcp.dead_link = config.MaxRetransmits;
 
             // create message buffers AFTER window size is set
             // see comments on buffer definition for the "+1" part
-            kcpMessageBuffer = new byte[1 + ReliableMaxMessageSize(config.ReceiveWindowSize)];
-            kcpSendBuffer    = new byte[1 + ReliableMaxMessageSize(config.ReceiveWindowSize)];
+            kcpMessageBuffer = new byte[1 + reliableMax];
+            kcpSendBuffer    = new byte[1 + reliableMax];
 
             timeout = config.Timeout;
 
@@ -308,8 +341,22 @@ namespace kcp2k
                     {
                         // we were waiting for a handshake.
                         // it proves that the other end speaks our protocol.
-                        // GetType() shows Server/ClientConn instead of just Connection.
-                        Log.Info($"KcpPeer: received handshake");
+
+                        // parse the cookie
+                        if (message.Count != 4)
+                        {
+                            // pass error to user callback. no need to log it manually.
+                            OnError(ErrorCode.InvalidReceive, $"KcpPeer: received invalid handshake message with size {message.Count} != 4. Disconnecting the connection.");
+                            Disconnect();
+                            return;
+                        }
+
+                        // store the cookie bytes to avoid int->byte[] conversions when sending.
+                        // still convert to uint once, just for prettier logging.
+                        Buffer.BlockCopy(message.Array, message.Offset, receivedCookie, 0, 4);
+                        uint prettyCookie = BitConverter.ToUInt32(message.Array, message.Offset);
+
+                        Log.Info($"KcpPeer: received handshake with cookie={prettyCookie}");
                         state = KcpState.Authenticated;
                         OnAuthenticated?.Invoke();
                         break;
@@ -491,86 +538,114 @@ namespace kcp2k
             }
         }
 
+        void OnRawInputReliable(ArraySegment<byte> message)
+        {
+            // input into kcp, but skip channel byte
+            int input = kcp.Input(message.Array, message.Offset, message.Count);
+            if (input != 0)
+            {
+                // GetType() shows Server/ClientConn instead of just Connection.
+                Log.Warning($"KcpPeer: Input failed with error={input} for buffer with length={message.Count - 1}");
+            }
+        }
+
+        void OnRawInputUnreliable(ArraySegment<byte> message)
+        {
+            // ideally we would queue all unreliable messages and
+            // then process them in ReceiveNext() together with the
+            // reliable messages, but:
+            // -> queues/allocations/pools are slow and complex.
+            // -> DOTSNET 10k is actually slower if we use pooled
+            //    unreliable messages for transform messages.
+            //
+            //      DOTSNET 10k benchmark:
+            //        reliable-only:         170 FPS
+            //        unreliable queued: 130-150 FPS
+            //        unreliable direct:     183 FPS(!)
+            //
+            //      DOTSNET 50k benchmark:
+            //        reliable-only:         FAILS (queues keep growing)
+            //        unreliable direct:     18-22 FPS(!)
+            //
+            // -> all unreliable messages are DATA messages anyway.
+            // -> let's skip the magic and call OnData directly if
+            //    the current state allows it.
+            if (state == KcpState.Authenticated)
+            {
+                OnData?.Invoke(message, KcpChannel.Unreliable);
+
+                // set last receive time to avoid timeout.
+                // -> we do this in ANY case even if not enabled.
+                //    a message is a message.
+                // -> we set last receive time for both reliable and
+                //    unreliable messages. both count.
+                //    otherwise a connection might time out even
+                //    though unreliable were received, but no
+                //    reliable was received.
+                lastReceiveTime = (uint)watch.ElapsedMilliseconds;
+            }
+            else
+            {
+                // it's common to receive unreliable messages before being
+                // authenticated, for example:
+                // - random internet noise
+                // - game server may send an unreliable message after authenticating,
+                //   and the unreliable message arrives on the client before the
+                //   'auth_ok' message. this can be avoided by sending a final
+                //   'ready' message after being authenticated, but this would
+                //   add another 'round trip time' of latency to the handshake.
+                //
+                // it's best to simply ignore invalid unreliable messages here.
+                // Log.Info($"KcpPeer: received unreliable message while not authenticated.");
+            }
+        }
+
         // insert raw IO. usually from socket.Receive.
         // offset is useful for relays, where we may parse a header and then
         // feed the rest to kcp.
         public void RawInput(ArraySegment<byte> segment)
         {
-            // ensure valid size: at least 1 byte for channel
-            if (segment.Count <= 0) return;
+            // ensure valid size: at least 1 byte for channel + 4 bytes for cookie
+            if (segment.Count <= 5) return;
 
             // parse channel
             // byte channel = segment[0]; ArraySegment[i] isn't supported in some older Unity Mono versions
             byte channel = segment.Array[segment.Offset + 0];
 
+            // parse cookie
+            uint messageCookie = BitConverter.ToUInt32(segment.Array, segment.Offset + 1);
+
+            // compare cookie to protect against UDP spoofing.
+            // messages won't have a cookie until after handshake.
+            // so only compare if we are authenticated.
+            // simply drop the message if the cookie doesn't match.
+            if (state == KcpState.Authenticated && messageCookie != cookie)
+            {
+                Log.Warning($"KcpPeer: dropped message with invalid cookie: {messageCookie} expected: {cookie}.");
+                return;
+            }
+
             // parse message
-            ArraySegment<byte> message = new ArraySegment<byte>(segment.Array, segment.Offset + 1, segment.Count - 1);
+            ArraySegment<byte> message = new ArraySegment<byte>(segment.Array, segment.Offset + 1+4, segment.Count - 1-4);
 
             switch (channel)
             {
                 case (byte)KcpChannel.Reliable:
                 {
-                    // input into kcp, but skip channel byte
-                    int input = kcp.Input(message.Array, message.Offset, message.Count);
-                    if (input != 0)
-                    {
-                        // GetType() shows Server/ClientConn instead of just Connection.
-                        Log.Warning($"KcpPeer: Input failed with error={input} for buffer with length={message.Count - 1}");
-                    }
+                    OnRawInputReliable(message);
                     break;
                 }
                 case (byte)KcpChannel.Unreliable:
                 {
-                    // ideally we would queue all unreliable messages and
-                    // then process them in ReceiveNext() together with the
-                    // reliable messages, but:
-                    // -> queues/allocations/pools are slow and complex.
-                    // -> DOTSNET 10k is actually slower if we use pooled
-                    //    unreliable messages for transform messages.
-                    //
-                    //      DOTSNET 10k benchmark:
-                    //        reliable-only:         170 FPS
-                    //        unreliable queued: 130-150 FPS
-                    //        unreliable direct:     183 FPS(!)
-                    //
-                    //      DOTSNET 50k benchmark:
-                    //        reliable-only:         FAILS (queues keep growing)
-                    //        unreliable direct:     18-22 FPS(!)
-                    //
-                    // -> all unreliable messages are DATA messages anyway.
-                    // -> let's skip the magic and call OnData directly if
-                    //    the current state allows it.
-                    if (state == KcpState.Authenticated)
-                    {
-                        OnData?.Invoke(message, KcpChannel.Unreliable);
-
-                        // set last receive time to avoid timeout.
-                        // -> we do this in ANY case even if not enabled.
-                        //    a message is a message.
-                        // -> we set last receive time for both reliable and
-                        //    unreliable messages. both count.
-                        //    otherwise a connection might time out even
-                        //    though unreliable were received, but no
-                        //    reliable was received.
-                        lastReceiveTime = (uint)watch.ElapsedMilliseconds;
-                    }
-                    else
-                    {
-                        // should never happen
-                        // pass error to user callback. no need to log it manually.
-                        // GetType() shows Server/ClientConn instead of just Connection.
-                        OnError(ErrorCode.InvalidReceive, $"KcpPeer: received unreliable message in state {state}. Disconnecting the connection.");
-                        Disconnect();
-                    }
+                    OnRawInputUnreliable(message);
                     break;
                 }
                 default:
                 {
-                    // not a valid channel. random data or attacks.
-                    // pass error to user callback. no need to log it manually.
-                        // GetType() shows Server/ClientConn instead of just Connection.
-                    OnError(ErrorCode.InvalidReceive, $"KcpPeer: Disconnecting connection because of invalid channel header: {channel}");
-                    Disconnect();
+                    // invalid channel indicates random internet noise.
+                    // servers may receive random UDP data.
+                    // just ignore it, but log for easier debugging.
+                    Log.Warning($"KcpPeer: invalid channel header: {channel}, likely internet noise");
                     break;
                 }
             }
@@ -579,12 +654,20 @@ namespace kcp2k
         // raw send called by kcp
         void RawSendReliable(byte[] data, int length)
         {
-            // copy channel header, data into raw send buffer, then send
+            // write channel header
+            // from 0, with 1 byte
             rawSendBuffer[0] = (byte)KcpChannel.Reliable;
-            Buffer.BlockCopy(data, 0, rawSendBuffer, 1, length);
+
+            // write handshake cookie to protect against UDP spoofing.
+            // from 1, with 4 bytes
+            Buffer.BlockCopy(receivedCookie, 0, rawSendBuffer, 1, 4);
+
+            // write data
+            // from 5, with N bytes
+            Buffer.BlockCopy(data, 0, rawSendBuffer, 1+4, length);
 
             // IO send
-            ArraySegment<byte> segment = new ArraySegment<byte>(rawSendBuffer, 0, length + 1);
+            ArraySegment<byte> segment = new ArraySegment<byte>(rawSendBuffer, 0, length + 1+4);
             RawSend(segment);
         }
 
@@ -595,12 +678,14 @@ namespace kcp2k
             {
                 // otherwise content is larger than MaxMessageSize. let user know!
                 // GetType() shows Server/ClientConn instead of just Connection.
-                OnError(ErrorCode.InvalidSend, $"KcpPeer: Failed to send reliable message of size {content.Count} because it's larger than ReliableMaxMessageSize={ReliableMaxMessageSize(kcp.rcv_wnd)}");
+                OnError(ErrorCode.InvalidSend, $"KcpPeer: Failed to send reliable message of size {content.Count} because it's larger than ReliableMaxMessageSize={reliableMax}");
                 return;
             }
 
-            // copy header, content (if any) into send buffer
+            // write channel header
             kcpSendBuffer[0] = (byte)header;
+
+            // write data (if any)
             if (content.Count > 0)
                 Buffer.BlockCopy(content.Array, content.Offset, kcpSendBuffer, 1, content.Count);
 
@@ -616,20 +701,28 @@ namespace kcp2k
         void SendUnreliable(ArraySegment<byte> message)
         {
             // message size needs to be <= unreliable max size
-            if (message.Count > UnreliableMaxMessageSize)
+            if (message.Count > unreliableMax)
             {
                 // otherwise content is larger than MaxMessageSize. let user know!
                 // GetType() shows Server/ClientConn instead of just Connection.
-                Log.Error($"KcpPeer: Failed to send unreliable message of size {message.Count} because it's larger than UnreliableMaxMessageSize={UnreliableMaxMessageSize}");
+                Log.Error($"KcpPeer: Failed to send unreliable message of size {message.Count} because it's larger than UnreliableMaxMessageSize={unreliableMax}");
                 return;
             }
 
-            // copy channel header, data into raw send buffer, then send
+            // write channel header
+            // from 0, with 1 byte
             rawSendBuffer[0] = (byte)KcpChannel.Unreliable;
-            Buffer.BlockCopy(message.Array, message.Offset, rawSendBuffer, 1, message.Count);
+
+            // write handshake cookie to protect against UDP spoofing.
+            // from 1, with 4 bytes
+            Buffer.BlockCopy(receivedCookie, 0, rawSendBuffer, 1, 4);
+
+            // write data
+            // from 5, with N bytes
+            Buffer.BlockCopy(message.Array, message.Offset, rawSendBuffer, 1 + 4, message.Count);
 
             // IO send
-            ArraySegment<byte> segment = new ArraySegment<byte>(rawSendBuffer, 0, message.Count + 1);
+            ArraySegment<byte> segment = new ArraySegment<byte>(rawSendBuffer, 0, message.Count + 1 + 4);
             RawSend(segment);
         }
 
@@ -641,9 +734,18 @@ namespace kcp2k
         // => handshake info needs to be delivered, so it goes over reliable.
         public void SendHandshake()
         {
+            // server includes a random cookie in handshake.
+            // client is expected to include in every message.
+            // this avoid UDP spoofing.
+            // KcpPeer simply always sends a cookie.
+            // in case client -> server cookies are ever implemented, etc.
+
+            // TODO nonalloc
+            byte[] cookieBytes = BitConverter.GetBytes(cookie);
+
             // GetType() shows Server/ClientConn instead of just Connection.
-            Log.Info($"KcpPeer: sending Handshake to other end!");
-            SendReliable(KcpHeader.Handshake, default);
+            Log.Info($"KcpPeer: sending Handshake to other end with cookie={cookie}!");
+            SendReliable(KcpHeader.Handshake, new ArraySegment<byte>(cookieBytes));
         }
 
         public void SendData(ArraySegment<byte> data, KcpChannel channel)

@@ -37,9 +37,9 @@ namespace Mirror
         public bool autoConnectClientBuild;
 
         /// <summary>Server Update frequency, per second. Use around 60Hz for fast paced games like Counter-Strike to minimize latency. Use around 30Hz for games like WoW to minimize computations. Use around 1-10Hz for slow paced games like EVE.</summary>
-        [Tooltip("Server & Client send rate per second. Use around 60Hz for fast paced games like Counter-Strike to minimize latency. Use around 30Hz for games like WoW to minimize computations. Use around 1-10Hz for slow paced games like EVE.")]
+        [Tooltip("Server & Client send rate per second. Use 60-100Hz for fast paced games like Counter-Strike to minimize latency. Use around 30Hz for games like WoW to minimize computations. Use around 1-10Hz for slow paced games like EVE.")]
         [FormerlySerializedAs("serverTickRate")]
-        public int sendRate = 30;
+        public int sendRate = 60;
 
         // Deprecated 2022-10-31
         [Obsolete("NetworkManager.serverTickRate was renamed to sendRate because that's what it configures for both server & client now.")]
@@ -88,6 +88,15 @@ namespace Mirror
         [Tooltip("Maximum number of concurrent connections.")]
         public int maxConnections = 100;
 
+        // Mirror global disconnect inactive option, independent of Transport.
+        // not all Transports do this properly, and it's easiest to configure this just once.
+        // this is very useful for some projects, keep it.
+        [Tooltip("When enabled, the server automatically disconnects inactive connections after the configured timeout.")]
+        public bool disconnectInactiveConnections;
+
+        [Tooltip("Timeout in seconds for server to automatically disconnect inactive connections if 'disconnectInactiveConnections' is enabled.")]
+        public float disconnectInactiveTimeout = 60f;
+
         [Header("Authentication")]
         [Tooltip("Authentication component attached to this object")]
         public NetworkAuthenticator authenticator;
@@ -117,6 +126,14 @@ namespace Mirror
         /// <summary>List of transforms populated by NetworkStartPositions</summary>
         public static List<Transform> startPositions = new List<Transform>();
         public static int startPositionIndex;
+
+        [Header("Snapshot Interpolation")]
+        public SnapshotInterpolationSettings snapshotSettings = new SnapshotInterpolationSettings();
+
+        [Header("Connection Quality")]
+        public float connectionQualityInterval = 3;
+        double lastConnectionQualityUpdate;
+        ConnectionQuality lastConnectionQuality = ConnectionQuality.ESTIMATING;
 
         [Header("Debug")]
         public bool timeInterpolationGui = false;
@@ -219,7 +236,7 @@ namespace Mirror
                 StartServer();
             }
             // only start server or client, never both
-            else if(autoConnectClientBuild)
+            else if (autoConnectClientBuild)
             {
                 StartClient();
             }
@@ -236,7 +253,45 @@ namespace Mirror
         public virtual void LateUpdate()
         {
             UpdateScene();
+            UpdateConnectionQuality();
         }
+
+        // Connection Quality //////////////////////////////////////////////////
+        // uses 'pragmatic' version based on snapshot interpolation by default.
+        void UpdateConnectionQuality()
+        {
+            if (!NetworkClient.active) return;
+
+            // only recalculate every few seconds
+            // we don't want to fire Good->Bad->Good->Bad hundreds of times per second.
+            if (NetworkTime.time < lastConnectionQualityUpdate + connectionQualityInterval) return;
+            lastConnectionQualityUpdate = NetworkTime.time;
+
+            // recaclulate connection quality
+            CalculateConnectionQuality();
+
+            // call event if changed
+            if (NetworkClient.connectionQuality != lastConnectionQuality)
+            {
+                OnConnectionQualityChanged(lastConnectionQuality, NetworkClient.connectionQuality);
+                lastConnectionQuality = NetworkClient.connectionQuality;
+            }
+        }
+
+        // users can overwrite this to run their own connection quality estimation.
+        protected virtual void CalculateConnectionQuality()
+        {
+            // NetworkClient.connectionQuality = ConnectionQualityHeuristics.Pragmatic(NetworkClient.initialBufferTime, NetworkClient.bufferTime);
+            NetworkClient.connectionQuality = ConnectionQualityHeuristics.Simple(NetworkTime.rtt, NetworkTime.rttVariance);
+        }
+
+        // users can overwrite this to display connection quality warnings, etc.
+        protected virtual void OnConnectionQualityChanged(ConnectionQuality previous, ConnectionQuality current)
+        {
+            Debug.Log($"[Mirror] Connection Quality changed from {previous} to {current}");
+        }
+
+        ////////////////////////////////////////////////////////////////////////
 
         // keep the online scene change check in a separate function.
         // only change scene if the requested online scene is not blank, and is not already loaded.
@@ -257,6 +312,7 @@ namespace Mirror
         void ApplyConfiguration()
         {
             NetworkServer.tickRate = sendRate;
+            NetworkClient.snapshotSettings = snapshotSettings;
         }
 
         // full server setup code, without spawning objects yet
@@ -275,6 +331,9 @@ namespace Mirror
             }
 
             ConfigureHeadlessFrameRate();
+
+            NetworkServer.disconnectInactiveConnections = disconnectInactiveConnections;
+            NetworkServer.disconnectInactiveTimeout = disconnectInactiveTimeout;
 
             // start listening to network connections
             NetworkServer.Listen(maxConnections);
@@ -536,14 +595,6 @@ namespace Mirror
         public void StopHost()
         {
             OnStopHost();
-
-            // calling OnTransportDisconnected was needed to fix
-            // https://github.com/vis2k/Mirror/issues/1515
-            // so that the host client receives a DisconnectMessage
-            // TODO reevaluate if this is still needed after all the disconnect
-            //      fixes, and try to put this into LocalConnection.Disconnect!
-            NetworkServer.OnTransportDisconnected(NetworkConnection.LocalConnectionId);
-
             StopClient();
             StopServer();
         }
@@ -595,6 +646,12 @@ namespace Mirror
         {
             if (mode == NetworkManagerMode.Offline)
                 return;
+
+            // For Host client, call OnServerDisconnect before NetworkClient.Disconnect
+            // because we need NetworkServer.localConnection to not be null
+            // NetworkClient.Disconnect will set it null.
+            if (mode == NetworkManagerMode.Host)
+                OnServerDisconnect(NetworkServer.localConnection);
 
             // ask client -> transport to disconnect.
             // handle voluntary and involuntary disconnects in OnClientDisconnect.
@@ -683,6 +740,20 @@ namespace Mirror
 
             // set active transport AFTER setting singleton.
             // so only if we didn't destroy ourselves.
+
+            // This tries to avoid missing transport errors and more clearly tells user what to fix.
+            if (transport == null)
+                if (TryGetComponent(out Transport newTransport))
+                {
+                    Debug.LogWarning($"No Transport assigned to Network Manager - Using {newTransport} found on same object.");
+                    transport = newTransport;
+                }
+                else
+                {
+                    Debug.LogError("No Transport on Network Manager...add a transport and assign it.");
+                    return false;
+                }
+
             Transport.active = transport;
             return true;
         }
@@ -1267,7 +1338,7 @@ namespace Mirror
         }
 
         /// <summary>Called on the server when a new client connects.</summary>
-        public virtual void OnServerConnect(NetworkConnectionToClient conn) {}
+        public virtual void OnServerConnect(NetworkConnectionToClient conn) { }
 
         /// <summary>Called on the server when a client disconnects.</summary>
         // Called by NetworkServer.OnTransportDisconnect!
@@ -1306,22 +1377,14 @@ namespace Mirror
             NetworkServer.AddPlayerForConnection(conn, player);
         }
 
-        // Deprecated 2022-05-12
-        [Obsolete("OnServerError(conn, Exception) was changed to OnServerError(conn, TransportError, string)")]
-        public virtual void OnServerError(NetworkConnectionToClient conn, Exception exception) {}
         /// <summary>Called on server when transport raises an exception. NetworkConnection may be null.</summary>
-        public virtual void OnServerError(NetworkConnectionToClient conn, TransportError error, string reason)
-        {
-#pragma warning disable CS0618
-            OnServerError(conn, new Exception(reason));
-#pragma warning restore CS0618
-        }
+        public virtual void OnServerError(NetworkConnectionToClient conn, TransportError error, string reason) { }
 
         /// <summary>Called from ServerChangeScene immediately before SceneManager.LoadSceneAsync is executed</summary>
-        public virtual void OnServerChangeScene(string newSceneName) {}
+        public virtual void OnServerChangeScene(string newSceneName) { }
 
         /// <summary>Called on server after a scene load with ServerChangeScene() is completed.</summary>
-        public virtual void OnServerSceneChanged(string sceneName) {}
+        public virtual void OnServerSceneChanged(string sceneName) { }
 
         /// <summary>Called on the client when connected to a server. By default it sets client as ready and adds a player.</summary>
         public virtual void OnClientConnect()
@@ -1342,25 +1405,17 @@ namespace Mirror
         }
 
         /// <summary>Called on clients when disconnected from a server.</summary>
-        public virtual void OnClientDisconnect() {}
+        public virtual void OnClientDisconnect() { }
 
-        // Deprecated 2022-05-12
-        [Obsolete("OnClientError(Exception) was changed to OnClientError(TransportError, string)")]
-        public virtual void OnClientError(Exception exception) {}
         /// <summary>Called on client when transport raises an exception.</summary>
-        public virtual void OnClientError(TransportError error, string reason)
-        {
-#pragma warning disable CS0618
-            OnClientError(new Exception(reason));
-#pragma warning restore CS0618
-        }
+        public virtual void OnClientError(TransportError error, string reason) { }
 
         /// <summary>Called on clients when a servers tells the client it is no longer ready, e.g. when switching scenes.</summary>
-        public virtual void OnClientNotReady() {}
+        public virtual void OnClientNotReady() { }
 
         /// <summary>Called from ClientChangeScene immediately before SceneManager.LoadSceneAsync is executed</summary>
         // customHandling: indicates if scene loading will be handled through overrides
-        public virtual void OnClientChangeScene(string newSceneName, SceneOperation sceneOperation, bool customHandling) {}
+        public virtual void OnClientChangeScene(string newSceneName, SceneOperation sceneOperation, bool customHandling) { }
 
         /// <summary>Called on clients when a scene has completed loaded, when the scene load was initiated by the server.</summary>
         // Scene changes can cause player objects to be destroyed. The default
@@ -1385,22 +1440,22 @@ namespace Mirror
         // from all versions, so users only need to implement this one case.
 
         /// <summary>This is invoked when a host is started.</summary>
-        public virtual void OnStartHost() {}
+        public virtual void OnStartHost() { }
 
         /// <summary>This is invoked when a server is started - including when a host is started.</summary>
-        public virtual void OnStartServer() {}
+        public virtual void OnStartServer() { }
 
         /// <summary>This is invoked when the client is started.</summary>
-        public virtual void OnStartClient() {}
+        public virtual void OnStartClient() { }
 
         /// <summary>This is called when a server is stopped - including when a host is stopped.</summary>
-        public virtual void OnStopServer() {}
+        public virtual void OnStopServer() { }
 
         /// <summary>This is called when a client is stopped.</summary>
-        public virtual void OnStopClient() {}
+        public virtual void OnStopClient() { }
 
         /// <summary>This is called when a host is stopped.</summary>
-        public virtual void OnStopHost() {}
+        public virtual void OnStopHost() { }
 
         // keep OnGUI even in builds. useful to debug snap interp.
         void OnGUI()

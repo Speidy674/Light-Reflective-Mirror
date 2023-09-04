@@ -133,7 +133,6 @@ GameObject:
   m_Component:
   - component: {fileID: 185921129}
   - component: {fileID: 185921128}
-  - component: {fileID: 185921127}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -141,14 +140,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!81 &185921127
-AudioListener:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 185921126}
-  m_Enabled: 1
 --- !u!20 &185921128
 Camera:
   m_ObjectHideFlags: 0
@@ -334,9 +325,11 @@ MonoBehaviour:
   NoDelay: 1
   Interval: 10
   Timeout: 10000
+  RecvBufferSize: 7361536
+  SendBufferSize: 7361536
   FastResend: 2
-  SendWindowSize: 4096
   ReceiveWindowSize: 4096
+  SendWindowSize: 4096
   MaxRetransmit: 40
   MaximizeSocketBuffers: 1
   ReliableMaxMessageSize: 298449
@@ -371,6 +364,16 @@ MonoBehaviour:
   autoCreatePlayer: 0
   playerSpawnMethod: 1
   spawnPrefabs: []
+  snapshotSettings:
+    bufferTimeMultiplier: 2
+    catchupNegativeThreshold: -1
+    catchupPositiveThreshold: 1
+    catchupSpeed: 0.019999999552965164
+    slowdownSpeed: 0.03999999910593033
+    driftEmaDuration: 1
+    dynamicAdjustment: 1
+    dynamicAdjustmentTolerance: 1
+    deliveryTimeEmaDuration: 2
   timeInterpolationGui: 0
   additiveScenes:
   - Assets/Mirror/Examples/AdditiveLevels/Scenes/SubLevel1.unity
@@ -435,9 +438,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 363a8867bb9c7b845a73233566df8c1e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  speed: 1
   fadeImage: {fileID: 1040404845}
   fadeColor: {r: 0, g: 0, b: 0, a: 1}
+  stepRate: 2
 --- !u!114 &1300359892
 MonoBehaviour:
   m_ObjectHideFlags: 0

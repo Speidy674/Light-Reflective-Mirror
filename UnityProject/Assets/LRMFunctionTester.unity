@@ -483,12 +483,10 @@ MonoBehaviour:
   Interval: 10
   Timeout: 10000
   FastResend: 2
-  CongestionWindow: 0
   SendWindowSize: 4096
   ReceiveWindowSize: 4096
   MaxRetransmit: 40
-  NonAlloc: 1
-  MaximizeSendReceiveBuffersToOSLimit: 1
+  MaximizeSocketBuffers: 1
   ReliableMaxMessageSize: 298449
   UnreliableMaxMessageSize: 1199
   debugLog: 0
@@ -566,6 +564,7 @@ MonoBehaviour:
       m_Calls: []
   serverStatus: Not Started.
   serverId: 
+  appId: 1
   region: 1
 --- !u!114 &1013063540
 MonoBehaviour:

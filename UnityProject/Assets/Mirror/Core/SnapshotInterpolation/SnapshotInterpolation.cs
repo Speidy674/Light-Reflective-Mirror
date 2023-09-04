@@ -35,13 +35,13 @@ namespace Mirror
             double drift,                    // how far we are off from bufferTime
             double catchupSpeed,             // in % [0,1]
             double slowdownSpeed,            // in % [0,1]
-            double catchupNegativeThreshold, // in % of sendInteral (careful, we may run out of snapshots)
-            double catchupPositiveThreshold) // in % of sendInterval)
+            double absoluteCatchupNegativeThreshold, // in seconds (careful, we may run out of snapshots)
+            double absoluteCatchupPositiveThreshold) // in seconds
         {
             // if the drift time is too large, it means we are behind more time.
             // so we need to speed up the timescale.
             // note the threshold should be sendInterval * catchupThreshold.
-            if (drift > catchupPositiveThreshold)
+            if (drift > absoluteCatchupPositiveThreshold)
             {
                 // localTimeline += 0.001; // too simple, this would ping pong
                 return 1 + catchupSpeed; // n% faster
@@ -50,7 +50,7 @@ namespace Mirror
             // if the drift time is too small, it means we are ahead of time.
             // so we need to slow down the timescale.
             // note the threshold should be sendInterval * catchupThreshold.
-            if (drift < catchupNegativeThreshold)
+            if (drift < absoluteCatchupNegativeThreshold)
             {
                 // localTimeline -= 0.001; // too simple, this would ping pong
                 return 1 - slowdownSpeed; // n% slower
@@ -88,12 +88,18 @@ namespace Mirror
         // extra function so we can use it for both cases:
         //   NetworkClient global timeline insertions & adjustments via Insert<T>.
         //   NetworkBehaviour local insertion without any time adjustments.
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool InsertIfNotExists<T>(
             SortedList<double, T> buffer, // snapshot buffer
+            int bufferLimit,              // don't grow infinitely
             T snapshot)                   // the newly received snapshot
             where T : Snapshot
         {
+            // slow clients may not be able to process incoming snapshots fast enough.
+            // infinitely growing snapshots would make it even worse.
+            // for example, run NetworkRigidbodyBenchmark while deep profiling client.
+            // the client just grows and reallocates the buffer forever.
+            if (buffer.Count >= bufferLimit) return false;
+
             // SortedList does not allow duplicates.
             // we don't need to check ContainsKey (which is expensive).
             // simply add and compare count before/after for the return value.
@@ -106,10 +112,37 @@ namespace Mirror
             return buffer.Count > before;
         }
 
+        // clamp timeline for cases where it gets too far behind.
+        // for example, a client app may go into the background and get updated
+        // with 1hz for a while.  by the time it's back it's at least 30 frames
+        // behind, possibly more if the transport also queues up. In this
+        // scenario, at 1% catch up it took around 20+ seconds to finally catch
+        // up. For these kinds of scenarios it will be better to snap / clamp.
+        //
+        // to reproduce, try snapshot interpolation demo and press the button to
+        // simulate the client timeline at multiple seconds behind. it'll take
+        // a long time to catch up if the timeline is a long time behind.
+        public static double TimelineClamp(
+            double localTimeline,
+            double bufferTime,
+            double latestRemoteTime)
+        {
+            // we want local timeline to always be 'bufferTime' behind remote.
+            double targetTime = latestRemoteTime - bufferTime;
+
+            // we define a boundary of 'bufferTime' around the target time.
+            // this is where catchup / slowdown will happen.
+            // outside of the area, we clamp.
+            double lowerBound = targetTime - bufferTime; // how far behind we can get
+            double upperBound = targetTime + bufferTime; // how far ahead we can get
+            return Mathd.Clamp(localTimeline, lowerBound, upperBound);
+        }
+
         // call this for every received snapshot.
         // adds / inserts it to the list & initializes local time if needed.
         public static void InsertAndAdjust<T>(
             SortedList<double, T> buffer,                 // snapshot buffer
+            int bufferLimit,                              // don't grow infinitely
             T snapshot,                                   // the newly received snapshot
             ref double localTimeline,                     // local interpolation time based on server time
             ref double localTimescale,                    // timeline multiplier to apply catchup / slowdown over time
@@ -141,7 +174,7 @@ namespace Mirror
             // note that insert may be called twice for the same key.
             // by default, this would throw.
             // need to handle it silently.
-            if (InsertIfNotExists(buffer, snapshot))
+            if (InsertIfNotExists(buffer, bufferLimit, snapshot))
             {
                 // dynamic buffer adjustment needs delivery interval jitter
                 if (buffer.Count >= 2)
@@ -158,7 +191,7 @@ namespace Mirror
                     //
                     // in practice, scramble is rare and won't make much difference
                     double previousLocalTime = buffer.Values[buffer.Count - 2].localTime;
-                    double lastestLocalTime  = buffer.Values[buffer.Count - 1].localTime;
+                    double lastestLocalTime = buffer.Values[buffer.Count - 1].localTime;
 
                     // this is the delivery time since last snapshot
                     double localDeliveryTime = lastestLocalTime - previousLocalTime;
@@ -178,7 +211,12 @@ namespace Mirror
                 // snapshots may arrive out of order, we can not use last-timeline.
                 // we need to use the inserted snapshot's time - timeline.
                 double latestRemoteTime = snapshot.remoteTime;
-                double timeDiff         = latestRemoteTime - localTimeline;
+
+                // ensure timeline stays within a reasonable bound behind/ahead.
+                localTimeline = TimelineClamp(localTimeline, bufferTime, latestRemoteTime);
+
+                // calculate timediff after localTimeline override changes
+                double timeDiff = latestRemoteTime - localTimeline;
 
                 // next, calculate average of a few seconds worth of timediffs.
                 // this gives smoother results.
@@ -195,6 +233,11 @@ namespace Mirror
                 // additionally, it allows us to look at more timeDiff values
                 // than we sould have access to in our buffer :)
                 driftEma.Add(timeDiff);
+
+                // timescale depends on driftEma.
+                // driftEma only changes when inserting.
+                // therefore timescale only needs to be calculated when inserting.
+                // saves CPU cycles in Update.
 
                 // next up, calculate how far we are currently away from bufferTime
                 double drift = driftEma.Value - bufferTime;
@@ -235,7 +278,7 @@ namespace Mirror
             for (int i = 0; i < buffer.Count - 1; ++i)
             {
                 // is local time between these two?
-                T first  = buffer.Values[i];
+                T first = buffer.Values[i];
                 T second = buffer.Values[i + 1];
                 if (localTimeline >= first.remoteTime &&
                     localTimeline <= second.remoteTime)
@@ -308,7 +351,7 @@ namespace Mirror
 
             // save from/to
             fromSnapshot = buffer.Values[from];
-            toSnapshot   = buffer.Values[to];
+            toSnapshot = buffer.Values[to];
 
             // remove older snapshots that we definitely don't need anymore.
             // after(!) using the indices.

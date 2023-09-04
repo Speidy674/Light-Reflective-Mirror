@@ -25,8 +25,8 @@ namespace LightReflectiveMirror.Endpoints
     public class Endpoint
     {
 
-        private static Dictionary<int,string> _cachedServerListAppId = new ();
-        private static Dictionary<int, string> _cachedCompressedServerListAppId = new ();
+        private static Dictionary<int, string> _cachedServerListAppId = new();
+        private static Dictionary<int, string> _cachedCompressedServerListAppId = new();
 
 
         private static string _cachedServerList = "[]";
@@ -34,13 +34,13 @@ namespace LightReflectiveMirror.Endpoints
         public static DateTime lastPing = DateTime.Now;
 
         private static List<Room> _rooms { get => Program.instance.GetRooms().Where(x => x.isPublic).ToList(); }
-        private static List<List<Room>> _appRooms 
-        { 
+        private static List<List<Room>> _appRooms
+        {
             get => Program.instance.GetRooms()
                 .Where(x => x.isPublic)
                 .GroupBy(x => x.appId)
                 .Select(grp => grp.ToList())
-                .ToList(); 
+                .ToList();
         }
 
         private RelayStats _stats
@@ -130,7 +130,7 @@ namespace LightReflectiveMirror.Endpoints
             if (Program.conf.EndpointServerList)
             {
                 int appId = int.Parse(context.Request.PathParameters["appId"]);
-                await context.Response.SendResponseAsync(_cachedCompressedServerListAppId.GetValueOrDefault(appId,"[]".Compress()));
+                await context.Response.SendResponseAsync(_cachedCompressedServerListAppId.GetValueOrDefault(appId, "[]".Compress()));
             }
             else
                 await context.Response.SendResponseAsync(HttpStatusCode.Forbidden);

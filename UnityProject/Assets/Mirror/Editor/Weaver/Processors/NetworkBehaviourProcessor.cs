@@ -205,20 +205,29 @@ namespace Mirror.Weaver
         }
 
         #region mark / check type as processed
-        public const string ProcessedFunctionName = "MirrorProcessed";
+        public const string ProcessedFunctionName = "Weaved";
 
-        // by adding an empty MirrorProcessed() function
+        // check if the type has a "Weaved" function already
         public static bool WasProcessed(TypeDefinition td)
         {
             return td.GetMethod(ProcessedFunctionName) != null;
         }
 
+        // add the Weaved() function which returns true.
+        // can be called at runtime and from tests to check if weaving succeeded.
         public void MarkAsProcessed(TypeDefinition td)
         {
             if (!WasProcessed(td))
             {
-                MethodDefinition versionMethod = new MethodDefinition(ProcessedFunctionName, MethodAttributes.Private, weaverTypes.Import(typeof(void)));
+                // add a function:
+                //   public override bool MirrorProcessed() { return true; }
+                // ReuseSlot means 'override'.
+                MethodDefinition versionMethod = new MethodDefinition(
+                    ProcessedFunctionName,
+                    MethodAttributes.Public | MethodAttributes.Virtual | MethodAttributes.ReuseSlot,
+                    weaverTypes.Import(typeof(bool)));
                 ILProcessor worker = versionMethod.Body.GetILProcessor();
+                worker.Emit(OpCodes.Ldc_I4_1);
                 worker.Emit(OpCodes.Ret);
                 td.Methods.Add(versionMethod);
             }
@@ -443,7 +452,21 @@ namespace Mirror.Weaver
                 // this
                 worker.Emit(OpCodes.Ldarg_0);
                 worker.Emit(OpCodes.Ldfld, syncVar);
-                MethodReference writeFunc = writers.GetWriteFunc(syncVar.FieldType, ref WeavingFailed);
+                MethodReference writeFunc;
+                // For NBs we always need to use the default NetworkBehaviour write func
+                // since the reader counter part uses that exact layout which is not easy to change
+                // without introducing more edge cases
+                // effectively this disallows custom NB-type writers/readers on SyncVars
+                // see: https://github.com/MirrorNetworking/Mirror/issues/2680
+                if (syncVar.FieldType.IsDerivedFrom<NetworkBehaviour>())
+                {
+                    writeFunc = writers.GetWriteFunc(weaverTypes.Import<NetworkBehaviour>(), ref WeavingFailed);
+                }
+                else
+                {
+                    writeFunc = writers.GetWriteFunc(syncVar.FieldType, ref WeavingFailed);
+                }
+
                 if (writeFunc != null)
                 {
                     worker.Emit(OpCodes.Call, writeFunc);
@@ -503,7 +526,21 @@ namespace Mirror.Weaver
                 worker.Emit(OpCodes.Ldarg_0);
                 worker.Emit(OpCodes.Ldfld, syncVar);
 
-                MethodReference writeFunc = writers.GetWriteFunc(syncVar.FieldType, ref WeavingFailed);
+                MethodReference writeFunc;
+                // For NBs we always need to use the default NetworkBehaviour write func
+                // since the reader counter part uses that exact layout which is not easy to change
+                // without introducing more edge cases
+                // effectively this disallows custom NB-type writers/readers on SyncVars
+                // see: https://github.com/MirrorNetworking/Mirror/issues/2680
+                if (syncVar.FieldType.IsDerivedFrom<NetworkBehaviour>())
+                {
+                    writeFunc = writers.GetWriteFunc(weaverTypes.Import<NetworkBehaviour>(), ref WeavingFailed);
+                }
+                else
+                {
+                    writeFunc = writers.GetWriteFunc(syncVar.FieldType, ref WeavingFailed);
+                }
+
                 if (writeFunc != null)
                 {
                     worker.Emit(OpCodes.Call, writeFunc);
@@ -582,10 +619,9 @@ namespace Mirror.Weaver
                 worker.Emit(OpCodes.Ldflda, netIdField);
                 worker.Emit(OpCodes.Call, weaverTypes.generatedSyncVarDeserialize_NetworkIdentity);
             }
-            // TODO this only uses the persistent netId for types DERIVED FROM NB.
-            //      not if the type is just 'NetworkBehaviour'.
-            //      this is what original implementation did too. fix it after.
-            else if (syncVar.FieldType.IsDerivedFrom<NetworkBehaviour>())
+            // handle both NetworkBehaviour and inheritors.
+            // fixes: https://github.com/MirrorNetworking/Mirror/issues/2939
+            else if (syncVar.FieldType.IsDerivedFrom<NetworkBehaviour>() || syncVar.FieldType.Is<NetworkBehaviour>())
             {
                 // reader
                 worker.Emit(OpCodes.Ldarg_1);
