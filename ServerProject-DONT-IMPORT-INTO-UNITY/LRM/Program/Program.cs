@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Threading;
@@ -114,6 +115,9 @@ namespace LightReflectiveMirror
                 {
                     if (_updateMethod != null) _updateMethod.Invoke(transport, null);
                     if (_lateUpdateMethod != null) _lateUpdateMethod.Invoke(transport, null);
+
+                    if (_serverUpdateMethod != null) _serverUpdateMethod.Invoke(transport, null);
+                    if (_serverLateUpdateMethod != null) _serverLateUpdateMethod.Invoke(transport, null);
                 }
                 catch (Exception e)
                 {
@@ -151,10 +155,11 @@ namespace LightReflectiveMirror
         {
             try
             {
-				using(WebClient wc = new())
+				using(HttpClient hc = new())
                 {
-					wc.Headers.Add("Authorization", conf.LoadBalancerAuthKey);
-					await wc.DownloadStringTaskAsync($"http://{conf.LoadBalancerAddress}:{conf.LoadBalancerPort}/api/roomsupdated");
+                    hc.DefaultRequestHeaders.Add("Authorization", conf.LoadBalancerAuthKey);
+
+                    await hc.GetStringAsync($"http://{conf.LoadBalancerAddress}:{conf.LoadBalancerPort}/api/roomsupdated");
 				}
             }
             catch { } // LLB might be down, ignore.

@@ -35,5 +35,5 @@ jobs:
       with:
         name: LRM-LoadBalancer
         path: |
-          LoadBalancerProject-DONT-IMPORT-INTO-UNITY/LRM_LoadBalancer/bin/Debug/net5.0/LRM_LoadBalancer.dll
-          LoadBalancerProject-DONT-IMPORT-INTO-UNITY/LRM_LoadBalancer/bin/Debug/net5.0/LRM_LoadBalancer.runtimeconfig.json
+          LoadBalancerProject-DONT-IMPORT-INTO-UNITY/LRM_LoadBalancer/bin/Debug/net7.0/LRM_LoadBalancer.dll
+          LoadBalancerProject-DONT-IMPORT-INTO-UNITY/LRM_LoadBalancer/bin/Debug/net7.0/LRM_LoadBalancer.runtimeconfig.json

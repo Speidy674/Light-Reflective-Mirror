@@ -37,7 +37,7 @@ jobs:
       with:
         name: LRM-Node
         path: |
-          ServerProject-DONT-IMPORT-INTO-UNITY/MultiCompiled/bin/Debug/net5.0/LRM.dll
-          ServerProject-DONT-IMPORT-INTO-UNITY/MultiCompiled/bin/Debug/net5.0/LRM.runtimeconfig.json
-          ServerProject-DONT-IMPORT-INTO-UNITY/MultiCompiled/bin/Debug/net5.0/MultiCompiled.dll
+          ServerProject-DONT-IMPORT-INTO-UNITY/MultiCompiled/bin/Debug/net7.0/LRM.dll
+          ServerProject-DONT-IMPORT-INTO-UNITY/MultiCompiled/bin/Debug/net7.0/LRM.runtimeconfig.json
+          ServerProject-DONT-IMPORT-INTO-UNITY/MultiCompiled/bin/Debug/net7.0/MultiCompiled.dll
           

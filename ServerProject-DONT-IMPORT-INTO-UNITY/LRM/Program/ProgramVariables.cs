@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net;
+using System.Net.Http;
 using System.Net.Sockets;
 using System.Reflection;
 
@@ -9,7 +10,7 @@ namespace LightReflectiveMirror
 {
     public partial class Program
     {
-        public static WebClient webClient = new();
+        public static HttpClient httpClient = new();
         public static Transport transport;
         public static Program instance;
         public static Config conf;
@@ -19,6 +20,10 @@ namespace LightReflectiveMirror
         private MethodInfo _startMethod;
         private MethodInfo _updateMethod;
         private MethodInfo _lateUpdateMethod;
+
+        private MethodInfo _serverUpdateMethod;
+        private MethodInfo _serverLateUpdateMethod;
+
 
         private DateTime _startupTime;
         public static string publicIP;
