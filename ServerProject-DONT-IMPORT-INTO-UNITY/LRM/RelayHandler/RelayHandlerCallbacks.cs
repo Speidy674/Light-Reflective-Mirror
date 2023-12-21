@@ -1,4 +1,5 @@
 ﻿using LightReflectiveMirror.Endpoints;
+using Mirror;
 using System;
 
 namespace LightReflectiveMirror
@@ -15,7 +16,7 @@ namespace LightReflectiveMirror
             var buffer = _sendBuffers.Rent(1);
             int pos = 0;
             buffer.WriteByte(ref pos, (byte)OpCodes.AuthenticationRequest);
-            Program.transport.ServerSend(clientId, 0, new ArraySegment<byte>(buffer, 0, pos));
+            Program.transport.ServerSend(clientId, new ArraySegment<byte>(buffer, 0, pos), Channels.Reliable);
             _sendBuffers.Return(buffer);
         }
 
@@ -45,7 +46,7 @@ namespace LightReflectiveMirror
                             int writePos = 0;
                             var sendBuffer = _sendBuffers.Rent(1);
                             sendBuffer.WriteByte(ref writePos, (byte)OpCodes.Authenticated);
-                            Program.transport.ServerSend(clientId, 0, new ArraySegment<byte>(sendBuffer, 0, writePos));
+                            Program.transport.ServerSend(clientId, new ArraySegment<byte>(sendBuffer, 0, writePos), Channels.Reliable);
                             
                             _sendBuffers.Return(sendBuffer);
                         }

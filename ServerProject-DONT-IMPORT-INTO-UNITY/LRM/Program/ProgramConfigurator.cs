@@ -1,4 +1,5 @@
 ﻿using LightReflectiveMirror.Endpoints;
+using Mirror;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,17 +24,15 @@ namespace LightReflectiveMirror
 
             WriteLogMessage("\nInvoking Transport Methods...");
 
-            if (_awakeMethod != null)
-                _awakeMethod.Invoke(transport, null);
+            _awakeMethod?.Invoke(transport, null);
 
-            if (_startMethod != null)
-                _startMethod.Invoke(transport, null);
+            _startMethod?.Invoke(transport, null);
 
             WriteLogMessage("\nStarting Transport... ", ConsoleColor.White, true);
 
-            transport.OnServerError = (clientID, error) =>
+            transport.OnServerError = (clientID, transportError, error) =>
             {
-                WriteLogMessage($"Transport Error, Client: {clientID}, Error: {error}", ConsoleColor.Red);
+                WriteLogMessage($"Transport Error, Client: {clientID} ,TransportError: {transportError} ,Error: {error}", ConsoleColor.Red);
             };
 
             transport.OnServerConnected = (clientID) =>
@@ -50,7 +49,7 @@ namespace LightReflectiveMirror
                     _NATRequest.WriteByte(ref _NATRequestPosition, (byte)OpCodes.RequestNATConnection);
                     _NATRequest.WriteString(ref _NATRequestPosition, natID);
                     _NATRequest.WriteInt(ref _NATRequestPosition, conf.NATPunchtroughPort);
-                    transport.ServerSend(clientID, 0, new ArraySegment<byte>(_NATRequest, 0, _NATRequestPosition));
+                    transport.ServerSend(clientID,  new ArraySegment<byte>(_NATRequest, 0, _NATRequestPosition), Channels.Reliable);
                 }
             };
 
@@ -63,14 +62,18 @@ namespace LightReflectiveMirror
                 _currentConnections.Remove(clientID);
                 _relay.HandleDisconnect(clientID);
 
-                if (NATConnections.ContainsKey(clientID))
-                    NATConnections.Remove(clientID);
+                NATConnections.Remove(clientID);
 
                 if (_pendingNATPunches.TryGetByFirst(clientID, out _))
                     _pendingNATPunches.Remove(clientID);
             };
 
-            transport.ServerStart(conf.TransportPort);
+            if (transport is PortTransport)
+            {
+                (transport as PortTransport).Port = conf.TransportPort;
+            }
+
+            transport.ServerStart();
 
             WriteLogMessage("OK", ConsoleColor.Green);
         }
@@ -148,8 +151,8 @@ namespace LightReflectiveMirror
             _lateUpdateMethod = type.GetMethod("LateUpdate", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 
 
-            _serverUpdateMethod = type.GetMethod("Update", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            _serverLateUpdateMethod = type.GetMethod("LateUpdate", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            _serverUpdateMethod = type.GetMethod("ServerEarlyUpdate", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            _serverLateUpdateMethod = type.GetMethod("ServerLateUpdate", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         }
     }
 }

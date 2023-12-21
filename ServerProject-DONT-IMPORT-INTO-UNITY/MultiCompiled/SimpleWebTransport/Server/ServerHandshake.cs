@@ -15,17 +15,21 @@ namespace Mirror.SimpleWeb
         const int ResponseLength = 129;
         const int KeyLength = 24;
         const int MergedKeyLength = 60;
-        const string KeyHeaderString = "Sec-WebSocket-Key: ";
+        const string KeyHeaderString = "\r\nSec-WebSocket-Key: ";
         // this isn't an official max, just a reasonable size for a websocket handshake
         readonly int maxHttpHeaderSize = 3000;
 
+        // SHA-1 is the websocket standard:
+        // https://www.rfc-editor.org/rfc/rfc6455
+        // we should follow the standard, even though SHA1 is considered weak:
+        // https://stackoverflow.com/questions/38038841/why-is-sha-1-considered-insecure
         readonly SHA1 sha1 = SHA1.Create();
         readonly BufferPool bufferPool;
 
         public ServerHandshake(BufferPool bufferPool, int handshakeMaxSize)
         {
             this.bufferPool = bufferPool;
-            this.maxHttpHeaderSize = handshakeMaxSize;
+            maxHttpHeaderSize = handshakeMaxSize;
         }
 
         ~ServerHandshake()
@@ -41,16 +45,15 @@ namespace Mirror.SimpleWeb
             {
                 if (!ReadHelper.TryRead(stream, getHeader.array, 0, GetSize))
                     return false;
-                getHeader.count = GetSize;
 
+                getHeader.count = GetSize;
 
                 if (!IsGet(getHeader.array))
                 {
-                    Log.Warn($"First bytes from client was not 'GET' for handshake, instead was {Log.BufferToString(getHeader.array, 0, GetSize)}");
+                    Log.Warn($"[SimpleWebTransport] First bytes from client was not 'GET' for handshake, instead was {Log.BufferToString(getHeader.array, 0, GetSize)}", false);
                     return false;
                 }
             }
-
 
             string msg = ReadToEndForHandshake(stream);
 
@@ -60,6 +63,10 @@ namespace Mirror.SimpleWeb
             try
             {
                 AcceptHandshake(stream, msg);
+
+                conn.request = new Request(msg);
+                conn.remoteAddress = conn.CalculateAddress();
+
                 return true;
             }
             catch (ArgumentException e)
@@ -80,7 +87,9 @@ namespace Mirror.SimpleWeb
                 int readCount = readCountOrFail.Value;
 
                 string msg = Encoding.ASCII.GetString(readBuffer.array, 0, readCount);
-                Log.Verbose(msg);
+                // GET isn't in the bytes we read here, so we need to add it back
+                msg = $"GET{msg}";
+                Log.Info($"Client Handshake Message:\r\n{msg}", false);
 
                 return msg;
             }
@@ -97,7 +106,7 @@ namespace Mirror.SimpleWeb
         void AcceptHandshake(Stream stream, string msg)
         {
             using (
-                ArrayBuffer keyBuffer = bufferPool.Take(KeyLength),
+                ArrayBuffer keyBuffer = bufferPool.Take(KeyLength + Constants.HandshakeGUIDLength),
                             responseBuffer = bufferPool.Take(ResponseLength))
             {
                 GetKey(msg, keyBuffer.array);
@@ -109,24 +118,22 @@ namespace Mirror.SimpleWeb
             }
         }
 
-
         static void GetKey(string msg, byte[] keyBuffer)
         {
-            int start = msg.IndexOf(KeyHeaderString) + KeyHeaderString.Length;
+            int start = msg.IndexOf(KeyHeaderString, StringComparison.InvariantCultureIgnoreCase) + KeyHeaderString.Length;
 
-            Log.Verbose($"Handshake Key: {msg.Substring(start, KeyLength)}");
+            Log.Verbose($"[SimpleWebTransport] Handshake Key: {msg.Substring(start, KeyLength)}", false);
             Encoding.ASCII.GetBytes(msg, start, KeyLength, keyBuffer, 0);
         }
 
         static void AppendGuid(byte[] keyBuffer)
         {
-            Buffer.BlockCopy(Constants.HandshakeGUIDBytes, 0, keyBuffer, KeyLength, Constants.HandshakeGUID.Length);
+            Buffer.BlockCopy(Constants.HandshakeGUIDBytes, 0, keyBuffer, KeyLength, Constants.HandshakeGUIDLength);
         }
 
         byte[] CreateHash(byte[] keyBuffer)
         {
-            Log.Verbose($"Handshake Hashing {Encoding.ASCII.GetString(keyBuffer, 0, MergedKeyLength)}");
-
+            Log.Verbose($"[SimpleWebTransport] Handshake Hashing {Encoding.ASCII.GetString(keyBuffer, 0, MergedKeyLength)}", false);
             return sha1.ComputeHash(keyBuffer, 0, MergedKeyLength);
         }
 
@@ -142,7 +149,7 @@ namespace Mirror.SimpleWeb
                 "Sec-WebSocket-Accept: {0}\r\n\r\n",
                 keyHashString);
 
-            Log.Verbose($"Handshake Response length {message.Length}, IsExpected {message.Length == ResponseLength}");
+            Log.Verbose($"[SimpleWebTransport] Handshake Response length {message.Length}, IsExpected {message.Length == ResponseLength}", false);
             Encoding.ASCII.GetBytes(message, 0, ResponseLength, responseBuffer, 0);
         }
     }

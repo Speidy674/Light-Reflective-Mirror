@@ -1,6 +1,8 @@
-﻿using System;
+﻿using Grapevine;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace LightReflectiveMirror
 {
@@ -25,7 +27,11 @@ namespace LightReflectiveMirror
             try
             {
                 // easier to just ping an outside source to get our public ip
-                publicIP = webClient.DownloadString("https://api.ipify.org/").Replace("\\r", "").Replace("\\n", "").Trim();
+
+                var task = Task.Run(() => httpClient.GetStringAsync("https://api.ipify.org/"));
+                task.Wait();
+
+                publicIP = task.Result.Replace("\\r", "").Replace("\\n", "").Trim();
             }
             catch
             {
@@ -34,7 +40,7 @@ namespace LightReflectiveMirror
             }
         }
 
-        void WriteTitle()
+        static void WriteTitle()
         {
             string t = @"  
                            w  c(..)o   (

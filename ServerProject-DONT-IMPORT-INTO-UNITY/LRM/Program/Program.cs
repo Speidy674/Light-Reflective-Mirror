@@ -114,9 +114,9 @@ namespace LightReflectiveMirror
                 try
                 {
                     if (_updateMethod != null) _updateMethod.Invoke(transport, null);
-                    if (_lateUpdateMethod != null) _lateUpdateMethod.Invoke(transport, null);
-
                     if (_serverUpdateMethod != null) _serverUpdateMethod.Invoke(transport, null);
+
+                    if (_lateUpdateMethod != null) _lateUpdateMethod.Invoke(transport, null);
                     if (_serverLateUpdateMethod != null) _serverLateUpdateMethod.Invoke(transport, null);
                 }
                 catch (Exception e)
@@ -131,7 +131,7 @@ namespace LightReflectiveMirror
                     _currentHeartbeatTimer = 0;
 
                     for (int i = 0; i < _currentConnections.Count; i++)
-                        transport.ServerSend(_currentConnections[i], 0, new ArraySegment<byte>(heartbeat));
+                        transport.ServerSend(_currentConnections[i], new ArraySegment<byte>(heartbeat), Channels.Reliable);
 
                     if (conf.UseLoadBalancer)
                     {
@@ -177,11 +177,11 @@ namespace LightReflectiveMirror
                 var uri = new Uri($"http://{conf.LoadBalancerAddress}:{conf.LoadBalancerPort}/api/auth");
                 string endpointPort = conf.EndpointPort.ToString();
                 string gamePort = conf.TransportPort.ToString();
-                HttpWebRequest authReq = (HttpWebRequest)WebRequest.Create(uri);
+                HttpRequestMessage authReq = new HttpRequestMessage(HttpMethod.Get,uri);
 
                 ConfigureHeaders(endpointPort, gamePort, authReq);
 
-                var res = await authReq.GetResponseAsync();
+                var res = await httpClient.SendAsync(authReq);
 
                 return true;
             }
@@ -193,7 +193,7 @@ namespace LightReflectiveMirror
             }
         }
 
-        private static void ConfigureHeaders(string endpointPort, string gamePort, HttpWebRequest authReq)
+        private static void ConfigureHeaders(string endpointPort, string gamePort, HttpRequestMessage authReq)
         {
             authReq.Headers.Add("Authorization", conf.LoadBalancerAuthKey);
             authReq.Headers.Add("x-EndpointPort", endpointPort);

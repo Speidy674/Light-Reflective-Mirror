@@ -1,28 +1,30 @@
 ﻿using kcp2k;
 using Mirror;
+using Mirror.SimpleWeb;
 using System;
 using System.Text;
+using System.Threading.Channels;
 
 namespace MultiCompiled
 {
 
-    public class KcpWebCombined : Transport
+    public class KcpWebCombined : Transport, PortTransport
     {
         public Transport[] transports;
+        
+        public ushort port = 7778;
+        public ushort Port { get => port; set => port = value; }
 
         Transport available;
 
-        public override void Awake()
+        public new void Awake()
         {
             transports = new Transport[2] { new KcpTransport(), new SimpleWebTransport() };
 
             foreach (Transport transport in transports)
                 transport.Awake();
         }
-
-
-
-        public override void Update()
+        public new void Update()
         {
             foreach (Transport transport in transports)
             {
@@ -99,9 +101,9 @@ namespace MultiCompiled
                 available.ClientDisconnect();
         }
 
-        public override void ClientSend(int channelId, ArraySegment<byte> segment)
+        public override void ClientSend(ArraySegment<byte> segment, int channelId)
         {
-            available.ClientSend(channelId, segment);
+            available.ClientSend(segment, channelId);
         }
 
         #endregion
@@ -147,9 +149,9 @@ namespace MultiCompiled
                     OnServerDataReceived.Invoke(FromBaseId(locali, baseConnectionId), data, channel);
                 };
 
-                transport.OnServerError = (baseConnectionId, error) =>
+                transport.OnServerError = (baseConnectionId, TransportError, error) =>
                 {
-                    OnServerError.Invoke(FromBaseId(locali, baseConnectionId), error);
+                    OnServerError.Invoke(FromBaseId(locali, baseConnectionId), TransportError, error);
                 };
                 transport.OnServerDisconnected = baseConnectionId =>
                 {
@@ -186,14 +188,14 @@ namespace MultiCompiled
             return transports[transportId].ServerGetClientAddress(baseConnectionId);
         }
 
-        public override bool ServerDisconnect(int connectionId)
+        public override void ServerDisconnect(int connectionId)
         {
             int baseConnectionId = ToBaseId(connectionId);
             int transportId = ToTransportId(connectionId);
-            return transports[transportId].ServerDisconnect(baseConnectionId);
+            transports[transportId].ServerDisconnect(baseConnectionId);
         }
 
-        public override void ServerSend(int connectionId, int channelId, ArraySegment<byte> segment)
+        public override void ServerSend(int connectionId, ArraySegment<byte> segment, int channelId)
         {
             int baseConnectionId = ToBaseId(connectionId);
             int transportId = ToTransportId(connectionId);
@@ -202,17 +204,22 @@ namespace MultiCompiled
             {
                 if (i == transportId)
                 {
-                    transports[i].ServerSend(baseConnectionId, channelId, segment);
+                    transports[i].ServerSend(baseConnectionId, segment, channelId);
                 }
             }
         }
 
-        public override void ServerStart(ushort port)
+        public override void ServerStart()
         {
             foreach (Transport transport in transports)
             {
+                if (transport is PortTransport)
+                {
+                    (transport as PortTransport).Port = port;
+                }
+
                 AddServerCallbacks();
-                transport.ServerStart(port);
+                transport.ServerStart();
             }
         }
 

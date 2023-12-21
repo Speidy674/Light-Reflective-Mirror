@@ -23,12 +23,11 @@
 //   * Transports should only process messages while the component is enabled.
 //
 using System;
-using UnityEngine;
 
 namespace Mirror
 {
     /// <summary>Abstract transport layer component</summary>
-    public abstract class Transport : MonoBehaviour
+    public abstract class Transport
     {
         /// <summary>The current transport used by Mirror.</summary>
         public static Transport active;
@@ -153,10 +152,9 @@ namespace Mirror
         //      process_outgoing()
         //
         // => see NetworkLoop.cs for detailed explanations!
-#pragma warning disable UNT0001 // Empty Unity message
+        public void Awake() { }
         public void Update() {}
         public void LateUpdate() {}
-#pragma warning restore UNT0001 // Empty Unity message
 
         /// <summary>
         /// NetworkLoop NetworkEarly/LateUpdate were added for a proper network

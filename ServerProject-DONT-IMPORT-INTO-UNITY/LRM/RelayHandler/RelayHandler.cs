@@ -1,6 +1,8 @@
-﻿using System;
+﻿using Mirror;
+using System;
 using System.Buffers;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace LightReflectiveMirror
 {
@@ -50,7 +52,11 @@ namespace LightReflectiveMirror
             {
                 // ping load balancer here
                 var uri = new Uri($"http://{Program.conf.LoadBalancerAddress}:{Program.conf.LoadBalancerPort}/api/get/id");
-                string randomID = Program.webClient.DownloadString(uri).Replace("\\r", "").Replace("\\n", "").Trim();
+
+                var task = Task.Run(() => Program.httpClient.GetStringAsync(uri));
+                task.Wait();
+
+                string randomID = task.Result.Replace("\\r", "").Replace("\\n", "").Trim();
 
                 return randomID;
             }
@@ -96,7 +102,7 @@ namespace LightReflectiveMirror
             sendBuffer.WriteByte(ref pos, (byte)OpCodes.GetData);
             sendBuffer.WriteBytes(ref pos, clientData);
 
-            Program.transport.ServerSend(sendTo, channel, new ArraySegment<byte>(sendBuffer, 0, pos));
+            Program.transport.ServerSend(sendTo, new ArraySegment<byte>(sendBuffer, 0, pos), channel);
             _sendBuffers.Return(sendBuffer);
         }
 
@@ -117,7 +123,7 @@ namespace LightReflectiveMirror
             sendBuffer.WriteBytes(ref pos, clientData);
             sendBuffer.WriteInt(ref pos, senderId);
 
-            Program.transport.ServerSend(room.hostId, channel, new ArraySegment<byte>(sendBuffer, 0, pos));
+            Program.transport.ServerSend(room.hostId, new ArraySegment<byte>(sendBuffer, 0, pos), channel);
             _sendBuffers.Return(sendBuffer);
         }
 
@@ -133,7 +139,7 @@ namespace LightReflectiveMirror
             sendBuffer.WriteByte(ref pos, (byte)OpCodes.GetID);
             sendBuffer.WriteInt(ref pos, clientId);
 
-            Program.transport.ServerSend(clientId, 0, new ArraySegment<byte>(sendBuffer, 0, pos));
+            Program.transport.ServerSend(clientId, new ArraySegment<byte>(sendBuffer, 0, pos), Channels.Reliable);
             _sendBuffers.Return(sendBuffer);
         }
     }

@@ -1,28 +1,30 @@
-using Newtonsoft.Json;
 using System.IO;
+using System.Security.Authentication;
+using Newtonsoft.Json;
 
 namespace Mirror.SimpleWeb
 {
-    internal class SslConfigLoader
+
+    public class SslConfigLoader
     {
         internal struct Cert
         {
             public string path;
             public string password;
         }
-        internal static SslConfig Load(SimpleWebTransport transport)
+        public static SslConfig Load(bool sslEnabled, string sslCertJson, SslProtocols sslProtocols)
         {
             // don't need to load anything if ssl is not enabled
-            if (!transport.sslEnabled)
+            if (!sslEnabled)
                 return default;
 
-            string certJsonPath = transport.sslCertJson;
+            string certJsonPath = sslCertJson;
 
             Cert cert = LoadCertJson(certJsonPath);
 
             return new SslConfig(
-                enabled: transport.sslEnabled,
-                sslProtocols: transport.sslProtocols,
+                enabled: sslEnabled,
+                sslProtocols: sslProtocols,
                 certPath: cert.path,
                 certPassword: cert.password
             );
@@ -33,15 +35,13 @@ namespace Mirror.SimpleWeb
             string json = File.ReadAllText(certJsonPath);
             Cert cert = JsonConvert.DeserializeObject<Cert>(json);
 
-            if (string.IsNullOrEmpty(cert.path))
-            {
+            if (string.IsNullOrWhiteSpace(cert.path))
                 throw new InvalidDataException("Cert Json didn't not contain \"path\"");
-            }
+
+            // don't use IsNullOrWhiteSpace here because whitespace could be a valid password for a cert
+            // password can also be empty
             if (string.IsNullOrEmpty(cert.password))
-            {
-                // password can be empty
                 cert.password = string.Empty;
-            }
 
             return cert;
         }

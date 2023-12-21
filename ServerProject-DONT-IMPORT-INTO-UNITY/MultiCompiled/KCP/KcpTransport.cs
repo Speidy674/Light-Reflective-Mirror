@@ -8,105 +8,128 @@ using Newtonsoft.Json;
 
 namespace kcp2k
 {
-    public class KcpTransport : Transport
+
+    public class KcpTransport : Transport , PortTransport
     {
         // scheme used by this transport
         public const string Scheme = "kcp";
 
         // common
-        public static int ConnectionTimeout = 10000;
-        
+        public ushort port = 7777;
+        public ushort Port { get => port; set => port=value; }
+
+        public bool DualMode = true;
         public bool NoDelay = true;
-        
         public uint Interval = 10;
-        
+        public int Timeout = 10000;
+        public int RecvBufferSize = 1024 * 1027 * 7;
+        public int SendBufferSize = 1024 * 1027 * 7;
+
         public int FastResend = 2;
-        
-        public bool CongestionWindow = false; // KCP 'NoCongestionWindow' is false by default. here we negate it for ease of use.
-        
-        public uint SendWindowSize = 4096; //Kcp.WND_SND; 32 by default. Mirror sends a lot, so we need a lot more.
-        
+        bool CongestionWindow = false; // KCP 'NoCongestionWindow' is false by default. here we negate it for ease of use.
         public uint ReceiveWindowSize = 4096; //Kcp.WND_RCV; 128 by default. Mirror sends a lot, so we need a lot more.
+        public uint SendWindowSize = 4096; //Kcp.WND_SND; 32 by default. Mirror sends a lot, so we need a lot more.
+        public uint MaxRetransmit = Kcp.DEADLINK * 2; // default prematurely disconnects a lot of people (#3022). use 2x.
+        public bool MaximizeSocketBuffers = true;
+
+        public int ReliableMaxMessageSize = 0; // readonly, displayed from OnValidate
+        public int UnreliableMaxMessageSize = 0; // readonly, displayed from OnValidate
+
+        // config is created from the serialized properties above.
+        // we can expose the config directly in the future.
+        // for now, let's not break people's old settings.
+        protected KcpConfig config;
+
+        // use default MTU for this transport.
+        const int MTU = Kcp.MTU_DEF;
 
         // server & client
-        KcpServer server;
-        KcpClient client;
+        protected KcpServer server;
+        protected KcpClient client;
 
         // debugging
-        public bool debugLog;
-        // show statistics in OnGUI
-        public bool statisticsGUI;
-        // log statistics for headless servers that can't show them in GUI
-        public bool statisticsLog;
+        public bool debugLog = false;
 
-        public override void Awake()
+        // translate Kcp <-> Mirror channels
+        public static int FromKcpChannel(KcpChannel channel) =>
+            channel == KcpChannel.Reliable ? Channels.Reliable : Channels.Unreliable;
+
+        public static KcpChannel ToKcpChannel(int channel) =>
+            channel == Channels.Reliable ? KcpChannel.Reliable : KcpChannel.Unreliable;
+
+        public static TransportError ToTransportError(ErrorCode error)
+        {
+            switch(error)
+            {
+                case ErrorCode.DnsResolve: return TransportError.DnsResolve;
+                case ErrorCode.Timeout: return TransportError.Timeout;
+                case ErrorCode.Congestion: return TransportError.Congestion;
+                case ErrorCode.InvalidReceive: return TransportError.InvalidReceive;
+                case ErrorCode.InvalidSend: return TransportError.InvalidSend;
+                case ErrorCode.ConnectionClosed: return TransportError.ConnectionClosed;
+                case ErrorCode.Unexpected: return TransportError.Unexpected;
+                default: throw new InvalidCastException($"KCP: missing error translation for {error}");
+            }
+        }
+
+        public new void Awake()
         {
 
             KCPConfig conf = new KCPConfig();
 
-            bool noConfig = bool.Parse(Environment.GetEnvironmentVariable("NO_CONFIG") ?? "false");
-
-            if (!File.Exists("KCPConfig.json") && !noConfig)
+            if (!File.Exists("KCPConfig.json"))
             {
                 File.WriteAllText("KCPConfig.json", JsonConvert.SerializeObject(conf, Formatting.Indented));
             }
             else
             {
-                if (noConfig)
-                {
-                    conf = new KCPConfig();
-                    conf.NoDelay = bool.Parse(Environment.GetEnvironmentVariable("KCP_NODELAY") ?? "true");
-                    conf.Interval = uint.Parse(Environment.GetEnvironmentVariable("KCP_INTERVAL") ?? "10");
-                    conf.FastResend = int.Parse(Environment.GetEnvironmentVariable("KCP_FAST_RESEND") ?? "2");
-                    conf.CongestionWindow = bool.Parse(Environment.GetEnvironmentVariable("KCP_CONGESTION_WINDOW") ?? "false");
-                    conf.SendWindowSize = uint.Parse(Environment.GetEnvironmentVariable("KCP_SEND_WINDOW_SIZE") ?? "4096");
-                    conf.ReceiveWindowSize = uint.Parse(Environment.GetEnvironmentVariable("KCP_RECEIVE_WINDOW_SIZE") ?? "4096");
-                    conf.ConnectionTimeout = int.Parse(Environment.GetEnvironmentVariable("KCP_CONNECTION_TIMEOUT") ?? "10000");
-                }
-                else 
-                    conf = JsonConvert.DeserializeObject<KCPConfig>(File.ReadAllText("KCPConfig.json"));
+                conf = JsonConvert.DeserializeObject<KCPConfig>(File.ReadAllText("KCPConfig.json"));
             }
 
+            DualMode = conf.DualMode;
             NoDelay = conf.NoDelay;
             Interval = conf.Interval;
+            Timeout = conf.Timeout;
+            RecvBufferSize = conf.RecvBufferSize;
+            SendBufferSize = conf.SendBufferSize;
+
             FastResend = conf.FastResend;
             CongestionWindow = conf.CongestionWindow;
-            SendWindowSize = conf.SendWindowSize;
             ReceiveWindowSize = conf.ReceiveWindowSize;
-            ConnectionTimeout = conf.ConnectionTimeout;
+            SendWindowSize = conf.SendWindowSize;
+            MaxRetransmit = conf.MaxRetransmit;
+            MaximizeSocketBuffers = conf.MaximizeSocketBuffers;
 
-            // logging
-            //   Log.Info should use Debug.Log if enabled, or nothing otherwise
-            //   (don't want to spam the console on headless servers)
-            if (debugLog)
-                Log.Info = Console.WriteLine;
-            else
-                Log.Info = _ => { };
-            Log.Warning = Console.WriteLine;
-            Log.Error = Console.WriteLine;
+            // create config from serialized settings
+            config = new KcpConfig(DualMode, RecvBufferSize, SendBufferSize, MTU, NoDelay, Interval, FastResend, CongestionWindow, SendWindowSize, ReceiveWindowSize, Timeout, MaxRetransmit);
 
-            // client
+            // client (NonAlloc version is not necessary anymore)
             client = new KcpClient(
                 () => OnClientConnected.Invoke(),
-                (message) => OnClientDataReceived.Invoke(message, 0),
-                () => OnClientDisconnected.Invoke()
+                (message, channel) => OnClientDataReceived.Invoke(message, FromKcpChannel(channel)),
+                () => OnClientDisconnected.Invoke(),
+                (error, reason) => OnClientError.Invoke(ToTransportError(error), reason),
+                config
             );
 
             // server
             server = new KcpServer(
                 (connectionId) => OnServerConnected.Invoke(connectionId),
-                (connectionId, message) => OnServerDataReceived.Invoke(connectionId, message, 0),
+                (connectionId, message, channel) => OnServerDataReceived.Invoke(connectionId, message, FromKcpChannel(channel)),
                 (connectionId) => OnServerDisconnected.Invoke(connectionId),
-                NoDelay,
-                Interval,
-                FastResend,
-                CongestionWindow,
-                SendWindowSize,
-                ReceiveWindowSize
+                (connectionId, error, reason) => OnServerError.Invoke(connectionId, ToTransportError(error), reason),
+                config
             );
 
-
             Console.WriteLine("KcpTransport initialized!");
+        }
+
+        protected virtual void OnValidate()
+        {
+            // show max message sizes in inspector for convenience.
+            // 'config' isn't available in edit mode yet, so use MTU define.
+            ReliableMaxMessageSize = KcpPeer.ReliableMaxMessageSize(MTU, ReceiveWindowSize);
+            UnreliableMaxMessageSize = KcpPeer.UnreliableMaxMessageSize(MTU);
         }
 
         // all except WebGL
@@ -114,42 +137,36 @@ namespace kcp2k
 
         // client
         public override bool ClientConnected() => client.connected;
-        public override void ClientConnect(string address) { }
-        public override void ClientSend(int channelId, ArraySegment<byte> segment)
+        public override void ClientConnect(string address)
         {
-            // switch to kcp channel.
-            // unreliable or reliable.
-            // default to reliable just to be sure.
-            switch (channelId)
-            {
-                case 1:
-                    client.Send(segment, KcpChannel.Unreliable);
-                    break;
-                default:
-                    client.Send(segment, KcpChannel.Reliable);
-                    break;
-            }
+            client.Connect(address, Port);
+        }
+        public override void ClientConnect(Uri uri)
+        {
+            if (uri.Scheme != Scheme)
+                throw new ArgumentException($"Invalid url {uri}, use {Scheme}://host:port instead", nameof(uri));
+
+            int serverPort = uri.IsDefaultPort ? Port : uri.Port;
+            client.Connect(uri.Host, (ushort)serverPort);
+        }
+        public override void ClientSend(ArraySegment<byte> segment, int channelId)
+        {
+            client.Send(segment, ToKcpChannel(channelId));
+
+            // call event. might be null if no statistics are listening etc.
+            OnClientDataSent?.Invoke(segment, channelId);
         }
         public override void ClientDisconnect() => client.Disconnect();
-
-        // scene change message will disable transports.
-        // kcp processes messages in an internal loop which should be
-        // stopped immediately after scene change (= after disabled)
-        // => kcp has tests to guaranteed that calling .Pause() during the
-        //    receive loop stops the receive loop immediately, not after.
-        void OnEnable()
+        // process incoming in early update
+        public override void ClientEarlyUpdate()
         {
-            // unpause when enabled again
-            client?.Unpause();
-            server?.Unpause();
+            // only process messages while transport is enabled.
+            // scene change messsages disable it to stop processing.
+            // (see also: https://github.com/vis2k/Mirror/pull/379)
+            if (true) client.TickIncoming();
         }
-
-        void OnDisable()
-        {
-            // pause immediately when not enabled anymore
-            client?.Pause();
-            server?.Pause();
-        }
+        // process outgoing in late update
+        public override void ClientLateUpdate() => client.TickOutgoing();
 
         // server
         public override Uri ServerUri()
@@ -157,75 +174,69 @@ namespace kcp2k
             UriBuilder builder = new UriBuilder();
             builder.Scheme = Scheme;
             builder.Host = Dns.GetHostName();
+            builder.Port = Port;
             return builder.Uri;
         }
         public override bool ServerActive() => server.IsActive();
-        public override void ServerStart(ushort requestedPort) => server.Start(requestedPort);
-        public override void ServerSend(int connectionId, int channelId, ArraySegment<byte> segment)
+        public override void ServerStart() => server.Start(Port);
+        public override void ServerSend(int connectionId, ArraySegment<byte> segment, int channelId)
         {
-            // switch to kcp channel.
-            // unreliable or reliable.
-            // default to reliable just to be sure.
-            switch (channelId)
-            {
-                case 1:
-                    server.Send(connectionId, segment, KcpChannel.Unreliable);
-                    break;
-                default:
-                    server.Send(connectionId, segment, KcpChannel.Reliable);
-                    break;
-            }
-        }
-        public override bool ServerDisconnect(int connectionId)
-        {
-            server.Disconnect(connectionId);
-            return true;
-        }
-        public override string ServerGetClientAddress(int connectionId) => server.GetClientAddress(connectionId);
-        public override void ServerStop() => server.Stop();
+            server.Send(connectionId, segment, ToKcpChannel(channelId));
 
-        public override void Update()
-        {
-            server.TickIncoming();
-            server.TickOutgoing();
+            // call event. might be null if no statistics are listening etc.
+            OnServerDataSent?.Invoke(connectionId, segment, channelId);
         }
+        public override void ServerDisconnect(int connectionId) =>  server.Disconnect(connectionId);
+        public override string ServerGetClientAddress(int connectionId)
+        {
+            IPEndPoint endPoint = server.GetClientEndPoint(connectionId);
+            return endPoint != null
+                // Map to IPv4 if "IsIPv4MappedToIPv6"
+                // "::ffff:127.0.0.1" -> "127.0.0.1"
+                ? (endPoint.Address.IsIPv4MappedToIPv6
+                ? endPoint.Address.MapToIPv4().ToString()
+                : endPoint.Address.ToString())
+                : "";
+        }
+        public override void ServerStop() => server.Stop();
+        public override void ServerEarlyUpdate()
+        {
+            // only process messages while transport is enabled.
+            // scene change messsages disable it to stop processing.
+            // (see also: https://github.com/vis2k/Mirror/pull/379)
+            if (true) server.TickIncoming();
+        }
+        // process outgoing in late update
+        public override void ServerLateUpdate() => server.TickOutgoing();
 
         // common
         public override void Shutdown() {}
 
         // max message size
-        public override int GetMaxPacketSize(int channelId = 0)
+        public override int GetMaxPacketSize(int channelId = Channels.Reliable)
         {
             // switch to kcp channel.
             // unreliable or reliable.
             // default to reliable just to be sure.
             switch (channelId)
             {
-                case 1:
-                    return KcpConnection.UnreliableMaxMessageSize;
+                case Channels.Unreliable:
+                    return KcpPeer.UnreliableMaxMessageSize(config.Mtu);
                 default:
-                    return KcpConnection.ReliableMaxMessageSize;
+                    return KcpPeer.ReliableMaxMessageSize(config.Mtu, ReceiveWindowSize);
             }
         }
 
-
-        // server statistics
-        public int GetAverageMaxSendRate() =>
-            server.connections.Count > 0
-                ? server.connections.Values.Sum(conn => (int)conn.MaxSendRate) / server.connections.Count
-                : 0;
-        public int GetAverageMaxReceiveRate() =>
-            server.connections.Count > 0
-                ? server.connections.Values.Sum(conn => (int)conn.MaxReceiveRate) / server.connections.Count
-                : 0;
-        int GetTotalSendQueue() =>
-            server.connections.Values.Sum(conn => conn.SendQueueCount);
-        int GetTotalReceiveQueue() =>
-            server.connections.Values.Sum(conn => conn.ReceiveQueueCount);
-        int GetTotalSendBuffer() =>
-            server.connections.Values.Sum(conn => conn.SendBufferCount);
-        int GetTotalReceiveBuffer() =>
-            server.connections.Values.Sum(conn => conn.ReceiveBufferCount);
+        // kcp reliable channel max packet size is MTU * WND_RCV
+        // this allows 144kb messages. but due to head of line blocking, all
+        // other messages would have to wait until the maxed size one is
+        // delivered. batching 144kb messages each time would be EXTREMELY slow
+        // and fill the send queue nearly immediately when using it over the
+        // network.
+        // => instead we always use MTU sized batches.
+        // => people can still send maxed size if needed.
+        public override int GetBatchThreshold(int channelId) =>
+            KcpPeer.UnreliableMaxMessageSize(config.Mtu);
 
         // PrettyBytes function from DOTSNET
         // pretty prints bytes as KB/MB/GB/etc.

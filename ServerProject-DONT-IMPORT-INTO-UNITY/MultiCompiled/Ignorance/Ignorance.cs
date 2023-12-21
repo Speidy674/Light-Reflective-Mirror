@@ -15,9 +15,10 @@ using System.Collections.Generic;
 
 namespace IgnoranceTransport
 {
-    public class Ignorance : Transport
+    public class Ignorance : Transport, PortTransport
     {
-        public int port = 7777;
+        public ushort port = 7777;
+        public ushort Port { get => port; set => port = value; }
 
         public IgnoranceLogType LogType = IgnoranceLogType.Standard;
         public bool DebugDisplay = false;
@@ -42,7 +43,7 @@ namespace IgnoranceTransport
             return true;
         }
 
-        public override void Awake()
+        public new void Awake()
         {
             if (LogType != IgnoranceLogType.Nothing)
                 Console.WriteLine($"Thanks for using Ignorance {IgnoranceInternals.Version}. Keep up to date, report bugs and support the developer at https://github.com/SoftwareGuy/Ignorance!");
@@ -75,7 +76,7 @@ namespace IgnoranceTransport
 
             if (!uri.IsDefaultPort)
 				// Set the communication port to the one specified.
-                port = uri.Port;
+                port = (ushort) uri.Port;
 
             // Pass onwards to the proper handler.
             ClientConnect(uri.Host);
@@ -102,7 +103,7 @@ namespace IgnoranceTransport
         // v1.4.0b6: Mirror rearranged the ClientSend params, so we need to apply a fix for that or
         // we end up using the obsoleted version. The obsolete version isn't a fatal error, but
         // it's best to stick with the new structures.
-        public override void ClientSend(int channelId, ArraySegment<byte> segment)
+        public override void ClientSend(ArraySegment<byte> segment, int channelId)
         {
             if (Client == null)
             {
@@ -144,7 +145,7 @@ namespace IgnoranceTransport
             return Server != null && Server.IsAlive;
         }
 
-        public override bool ServerDisconnect(int connectionId) => ServerDisconnectLegacy(connectionId);
+        public override void ServerDisconnect(int connectionId) => ServerDisconnectLegacy(connectionId);
 
         public override string ServerGetClientAddress(int connectionId)
         {
@@ -154,7 +155,7 @@ namespace IgnoranceTransport
             return "(unavailable)";
         }
 
-        public override void ServerSend(int connectionId, int channelId, ArraySegment<byte> segment)
+        public override void ServerSend(int connectionId, ArraySegment<byte> segment, int channelId)
         {
             // Debug.Log($"ServerSend({connectionId}, {channelId}, <{segment.Count} byte segment>)");
 
@@ -191,11 +192,10 @@ namespace IgnoranceTransport
 
         }
 
-        public override void ServerStart(ushort _port)
+        public override void ServerStart()
         {
             if (LogType != IgnoranceLogType.Nothing)
                 Console.WriteLine("Ignorance Server Instance starting up...");
-            port = _port;
 
             InitializeServerBackend();
 
@@ -450,7 +450,7 @@ namespace IgnoranceTransport
         // Normally, Mirror blocks Update() due to poor design decisions...
         // But thanks to Vincenzo, we've found a way to bypass that block.
         // Update is called once per frame. We don't have to worry about this shit now.
-        public override void Update()
+        public new void Update()
         {
             // Process what FixedUpdate missed, only if the boolean is not set.
             if (!fixedUpdateCompletedWork)

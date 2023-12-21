@@ -1,20 +1,22 @@
+// server needs to store a separate KcpPeer for each connection.
+// as well as remoteEndPoint so we know where to send data to.
 using System.Net;
-using System.Net.Sockets;
 
 namespace kcp2k
 {
-    public class KcpServerConnection : KcpConnection
+    // struct to avoid memory indirection
+    public struct KcpServerConnection
     {
-        public KcpServerConnection(Socket socket, EndPoint remoteEndpoint, bool noDelay, uint interval = Kcp.INTERVAL, int fastResend = 0, bool congestionWindow = true, uint sendWindowSize = Kcp.WND_SND, uint receiveWindowSize = Kcp.WND_RCV)
-        {
-            this.socket = socket;
-            this.remoteEndpoint = remoteEndpoint;
-            SetupKcp(noDelay, interval, fastResend, congestionWindow, sendWindowSize, receiveWindowSize);
-        }
+        // peer can't be set from constructor at the moment.
+        // because peer callbacks need to know 'connection'.
+        // see KcpServer.CreateConnection.
+        public KcpPeer peer;
+        public readonly EndPoint remoteEndPoint;
 
-        protected override void RawSend(byte[] data, int length)
+        public KcpServerConnection(EndPoint remoteEndPoint)
         {
-            socket.SendTo(data, 0, length, SocketFlags.None, remoteEndpoint);
+            peer = null;
+            this.remoteEndPoint = remoteEndPoint;
         }
     }
 }

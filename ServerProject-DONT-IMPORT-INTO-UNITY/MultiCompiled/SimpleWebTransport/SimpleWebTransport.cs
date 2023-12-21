@@ -1,16 +1,22 @@
-using Mirror.SimpleWeb;
 using Newtonsoft.Json;
 using System;
 using System.IO;
 using System.Net;
 using System.Security.Authentication;
 
-namespace Mirror
+namespace Mirror.SimpleWeb
 {
-    public class SimpleWebTransport : Transport
+
+    public class SimpleWebTransport : Transport, PortTransport
     {
         public const string NormalScheme = "ws";
         public const string SecureScheme = "wss";
+
+
+        public ushort port = 7778;
+        public ushort Port { get => port; set => port=value; }
+
+        public bool ClientUseDefaultPort;
 
         public int maxMessageSize = 16 * 1024;
 
@@ -28,17 +34,17 @@ namespace Mirror
 
         public bool batchSend = true;
 
-        public bool waitBeforeSend = false;
-
+        public bool waitBeforeSend = true;
 
         public bool clientUseWss;
 
         public bool sslEnabled;
-        
+
         public string sslCertJson = "./cert.json";
+
         public SslProtocols sslProtocols = SslProtocols.Tls12;
 
-        Log.Levels _logLevels = Log.Levels.none;
+        Log.Levels _logLevels = Log.Levels.warn;
 
         /// <summary>
         /// <para>Gets _logLevels field</para>
@@ -54,34 +60,13 @@ namespace Mirror
             }
         }
 
-        void OnValidate()
-        {
-            if (maxMessageSize > ushort.MaxValue)
-            {
-                Console.WriteLine($"max supported value for maxMessageSize is {ushort.MaxValue}");
-                maxMessageSize = ushort.MaxValue;
-            }
-
-            Log.level = _logLevels;
-        }
-
         SimpleWebServer server;
 
         TcpConfig TcpConfig => new TcpConfig(noDelay, sendTimeout, receiveTimeout);
 
-        public override bool Available()
-        {
-            return true;
-        }
-        public override int GetMaxPacketSize(int channelId = 0)
-        {
-            return maxMessageSize;
-        }
-
-        public override void Awake()
+        public new void Awake()
         {
             Log.level = _logLevels;
-
 
             SWTConfig conf = new SWTConfig();
             if (!File.Exists("SWTConfig.json"))
@@ -93,18 +78,31 @@ namespace Mirror
                 conf = JsonConvert.DeserializeObject<SWTConfig>(File.ReadAllText("SWTConfig.json"));
             }
 
+            ClientUseDefaultPort = conf.ClientUseDefaultPort;
             maxMessageSize = conf.maxMessageSize;
             handshakeMaxSize = conf.handshakeMaxSize;
+            sendTimeout = conf.sendTimeout;
             noDelay = conf.noDelay;
             sendTimeout = conf.sendTimeout;
             receiveTimeout = conf.receiveTimeout;
             serverMaxMessagesPerTick = conf.serverMaxMessagesPerTick;
+            clientMaxMessagesPerTick = conf.clientMaxMessagesPerTick;
+            batchSend = conf.batchSend;
             waitBeforeSend = conf.waitBeforeSend;
             clientUseWss = conf.clientUseWss;
             sslEnabled = conf.sslEnabled;
             sslCertJson = conf.sslCertJson;
             sslProtocols = conf.sslProtocols;
+    }
+
+        void OnValidate()
+        {
+            Log.level = _logLevels;
         }
+
+        public override bool Available() => true;
+
+        public override int GetMaxPacketSize(int channelId = 0) => maxMessageSize;
 
         public override void Shutdown()
         {
@@ -113,113 +111,115 @@ namespace Mirror
         }
 
         #region Client
+
         string GetClientScheme() => (sslEnabled || clientUseWss) ? SecureScheme : NormalScheme;
-        string GetServerScheme() => sslEnabled ? SecureScheme : NormalScheme;
-        public override bool ClientConnected()
-        {
-            // not null and not NotConnected (we want to return true if connecting or disconnecting)
-            return false;
-        }
+
+        public override bool ClientConnected() { return false; }
 
         public override void ClientConnect(string hostname) { }
 
+        public override void ClientConnect(Uri uri) { }
+
         public override void ClientDisconnect() { }
 
-        public override void ClientSend(int channelId, ArraySegment<byte> segment) { }
+        public override void ClientSend(ArraySegment<byte> segment, int channelId) { }
+
+        public override void ClientEarlyUpdate() { }
+
         #endregion
 
         #region Server
-        public override bool ServerActive()
-        {
-            return server != null && server.Active;
-        }
 
-        public override void ServerStart(ushort requestedPort)
-        {
-            if (ServerActive())
-            {
-                Console.WriteLine("SimpleWebServer Already Started");
-            }
-
-            SslConfig config = SslConfigLoader.Load(this);
-            server = new SimpleWebServer(serverMaxMessagesPerTick, TcpConfig, maxMessageSize, handshakeMaxSize, config);
-
-            server.onConnect += OnServerConnected.Invoke;
-            server.onDisconnect += OnServerDisconnected.Invoke;
-            server.onData += (int connId, ArraySegment<byte> data) => OnServerDataReceived.Invoke(connId, data, 0);
-            server.onError += OnServerError.Invoke;
-
-            SendLoopConfig.batchSend = batchSend || waitBeforeSend;
-            SendLoopConfig.sleepBeforeSend = waitBeforeSend;
-
-            server.Start(requestedPort);
-        }
-
-        public override void ServerStop()
-        {
-            if (!ServerActive())
-            {
-                Console.WriteLine("SimpleWebServer Not Active");
-            }
-
-            server.Stop();
-            server = null;
-        }
-
-        public override bool ServerDisconnect(int connectionId)
-        {
-            if (!ServerActive())
-            {
-                Console.WriteLine("SimpleWebServer Not Active");
-                return false;
-            }
-
-            return server.KickClient(connectionId);
-        }
-
-        public override void ServerSend(int connectionId, int channelId, ArraySegment<byte> segment)
-        {
-            if (!ServerActive())
-            {
-                Console.WriteLine("SimpleWebServer Not Active");
-                return;
-            }
-
-            if (segment.Count > maxMessageSize)
-            {
-                Console.WriteLine("Message greater than max size");
-                return;
-            }
-
-            if (segment.Count == 0)
-            {
-                Console.WriteLine("Message count was zero");
-                return;
-            }
-
-            server.SendOne(connectionId, segment);
-            return;
-        }
-
-        public override string ServerGetClientAddress(int connectionId)
-        {
-            return server.GetClientAddress(connectionId);
-        }
+        string GetServerScheme() => sslEnabled ? SecureScheme : NormalScheme;
 
         public override Uri ServerUri()
         {
             UriBuilder builder = new UriBuilder
             {
                 Scheme = GetServerScheme(),
-                Host = Dns.GetHostName()
+                Host = Dns.GetHostName(),
+                Port = port
             };
             return builder.Uri;
         }
 
-        public override void Update()
+        public override bool ServerActive()
+        {
+            return server != null && server.Active;
+        }
+
+        public override void ServerStart()
+        {
+            if (ServerActive())
+                Console.Error.WriteLine("[SimpleWebTransport] Server Already Started");
+
+            SslConfig config = SslConfigLoader.Load(sslEnabled, sslCertJson, sslProtocols);
+            server = new SimpleWebServer(serverMaxMessagesPerTick, TcpConfig, maxMessageSize, handshakeMaxSize, config);
+
+            server.onConnect += OnServerConnected.Invoke;
+            server.onDisconnect += OnServerDisconnected.Invoke;
+            server.onData += (int connId, ArraySegment<byte> data) => OnServerDataReceived.Invoke(connId, data, Channels.Reliable);
+            server.onError += (connId, exception) => OnServerError(connId, TransportError.Unexpected, exception.ToString());
+
+            SendLoopConfig.batchSend = batchSend || waitBeforeSend;
+            SendLoopConfig.sleepBeforeSend = waitBeforeSend;
+
+            server.Start(port);
+        }
+
+        public override void ServerStop()
+        {
+            if (!ServerActive())
+                Console.Error.WriteLine("[SimpleWebTransport] Server Not Active");
+
+            server.Stop();
+            server = null;
+        }
+
+        public override void ServerDisconnect(int connectionId)
+        {
+            if (!ServerActive())
+                Console.Error.WriteLine("[SimpleWebTransport] Server Not Active");
+
+            server.KickClient(connectionId);
+        }
+
+        public override void ServerSend(int connectionId, ArraySegment<byte> segment, int channelId)
+        {
+            if (!ServerActive())
+            {
+                Log.Error("[SimpleWebTransport] Server Not Active", false);
+                return;
+            }
+
+            if (segment.Count > maxMessageSize)
+            {
+                Log.Error("[SimpleWebTransport] Message greater than max size", false);
+                return;
+            }
+
+            if (segment.Count == 0)
+            {
+                Log.Error("[SimpleWebTransport] Message count was zero", false);
+                return;
+            }
+
+            server.SendOne(connectionId, segment);
+
+            // call event. might be null if no statistics are listening etc.
+            OnServerDataSent?.Invoke(connectionId, segment, Channels.Reliable);
+        }
+
+        public override string ServerGetClientAddress(int connectionId) => server.GetClientAddress(connectionId);
+
+        public Request ServerGetClientRequest(int connectionId) => server.GetClientRequest(connectionId);
+
+        // messages should always be processed in early update
+        public override void ServerEarlyUpdate()
         {
             server?.ProcessMessageQueue();
         }
+
         #endregion
     }
 }
