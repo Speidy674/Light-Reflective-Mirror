@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -106,11 +107,11 @@ namespace LightReflectiveMirror.LoadBalancing
         /// <returns></returns>
         public async Task<RelayServerInfo?> RequestStatsFromNode(string serverIP, ushort port)
         {
-            using (WebClient wc = new WebClient())
+            using (HttpClient hc = new HttpClient())
             {
                 try
                 {
-                    string receivedStats = await wc.DownloadStringTaskAsync($"http://{serverIP}:{port}{API_PATH}");
+                    string receivedStats = await hc.GetStringAsync($"http://{serverIP}:{port}{API_PATH}");
 
                     var stats = JsonConvert.DeserializeObject<RelayServerInfo>(receivedStats);
 
@@ -135,11 +136,11 @@ namespace LightReflectiveMirror.LoadBalancing
         /// <returns></returns>
         public async Task<bool> HealthCheckNode(string serverIP, ushort port)
         {
-            using (WebClient wc = new WebClient())
+            using (HttpClient hc = new HttpClient())
             {
                 try
                 {
-                    await wc.DownloadStringTaskAsync($"http://{serverIP}:{port}{API_PATH}");
+                    await hc.GetStringAsync($"http://{serverIP}:{port}{API_PATH}");
 
                     // If it got to here, then the server is healthy!
                     return true;
@@ -161,11 +162,11 @@ namespace LightReflectiveMirror.LoadBalancing
         public async Task<List<Room>> RequestServerListFromNode(string serverIP, ushort port)
         {
             Logger.ForceLogMessage($"Request Server List from Node: {serverIP}:{port}", ConsoleColor.Yellow);
-            using (WebClient wc = new WebClient())
+            using (HttpClient hc = new HttpClient())
             {
                 try
                 {
-                    string receivedStats = await wc.DownloadStringTaskAsync($"http://{serverIP}:{port}/api/servers");
+                    string receivedStats = await hc.GetStringAsync($"http://{serverIP}:{port}/api/servers");
                     var stats = JsonConvert.DeserializeObject<List<Room>>(receivedStats);
 
                     // If they have no servers, it will return null as json for some reason.
