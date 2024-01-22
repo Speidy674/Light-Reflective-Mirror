@@ -170,11 +170,11 @@ namespace LightReflectiveMirror.Endpoints
                 {
                     if (ssl)
                     {
-                        server.Prefixes.Add($"https://*:{port}/");
+                        server.Prefixes.Add($"https://+:{port}/");
                     }
                     else
                     {
-                        server.Prefixes.Add($"http://*:{port}/");
+                        server.Prefixes.Add($"http://+:{port}/");
                     }
                 }).Build();
 
