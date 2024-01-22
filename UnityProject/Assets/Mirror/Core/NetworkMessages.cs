@@ -17,8 +17,14 @@ namespace Mirror
         // => addons can work with each other without knowing their ids before
         // => 2 bytes is enough to avoid collisions.
         //    registering a messageId twice will log a warning anyway.
-        public static readonly ushort Id =
-            (ushort)(typeof(T).FullName.GetStableHashCode());
+        public static readonly ushort Id = CalculateId();
+
+        // Gets the 32bit fnv1a hash
+        // To get it down to 16bit but still reduce hash collisions we cant just cast it to ushort
+        // Instead we take the highest 16bits of the 32bit hash and fold them with xor into the lower 16bits
+        // This will create a more uniform 16bit hash, the method is described in:
+        // http://www.isthe.com/chongo/tech/comp/fnv/ in section "Changing the FNV hash size - xor-folding"
+        static ushort CalculateId() => typeof(T).FullName.GetStableHashCode16();
     }
 
     // message packing all in one place, instead of constructing headers in all
@@ -107,7 +113,7 @@ namespace Mirror
 
         // version for handlers with channelId
         // inline! only exists for 20-30 messages and they call it all the time.
-        internal static NetworkMessageDelegate WrapHandler<T, C>(Action<C, T, int> handler, bool requireAuthentication)
+        internal static NetworkMessageDelegate WrapHandler<T, C>(Action<C, T, int> handler, bool requireAuthentication, bool exceptionsDisconnect)
             where T : struct, NetworkMessage
             where C : NetworkConnection
             => (conn, reader, channelId) =>
@@ -145,9 +151,19 @@ namespace Mirror
                 }
                 catch (Exception exception)
                 {
-                    Debug.LogError($"Disconnecting connection: {conn}. This can happen if the other side accidentally (or an attacker intentionally) sent invalid data. Reason: {exception}");
-                    conn.Disconnect();
-                    return;
+                    // should we disconnect on exceptions?
+                    if (exceptionsDisconnect)
+                    {
+                        Debug.LogError($"Disconnecting connection: {conn} because reading a message of type {typeof(T)} caused an Exception. This can happen if the other side accidentally (or an attacker intentionally) sent invalid data. Reason: {exception}");
+                        conn.Disconnect();
+                        return;
+                    }
+                    // otherwise log it but allow the connection to keep playing
+                    else
+                    {
+                        Debug.LogError($"Caught an Exception when reading a message from: {conn} of type {typeof(T)}. Reason: {exception}");
+                        return;
+                    }
                 }
                 finally
                 {
@@ -162,10 +178,19 @@ namespace Mirror
                     // user implemented handler
                     handler((C)conn, message, channelId);
                 }
-                catch (Exception e)
+                catch (Exception exception)
                 {
-                    Debug.LogError($"Disconnecting connId={conn.connectionId} to prevent exploits from an Exception in MessageHandler: {e.GetType().Name} {e.Message}\n{e.StackTrace}");
-                    conn.Disconnect();
+                    // should we disconnect on exceptions?
+                    if (exceptionsDisconnect)
+                    {
+                        Debug.LogError($"Disconnecting connection: {conn} because handling a message of type {typeof(T)} caused an Exception. This can happen if the other side accidentally (or an attacker intentionally) sent invalid data. Reason: {exception}");
+                        conn.Disconnect();
+                    }
+                    // otherwise log it but allow the connection to keep playing
+                    else
+                    {
+                        Debug.LogError($"Caught an Exception when handling a message from: {conn} of type {typeof(T)}. Reason: {exception}");
+                    }
                 }
             };
 
@@ -173,13 +198,13 @@ namespace Mirror
         // TODO obsolete this some day to always use the channelId version.
         //      all handlers in this version are wrapped with 1 extra action.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static NetworkMessageDelegate WrapHandler<T, C>(Action<C, T> handler, bool requireAuthentication)
+        internal static NetworkMessageDelegate WrapHandler<T, C>(Action<C, T> handler, bool requireAuthentication, bool exceptionsDisconnect)
             where T : struct, NetworkMessage
             where C : NetworkConnection
         {
             // wrap action as channelId version, call original
             void Wrapped(C conn, T msg, int _) => handler(conn, msg);
-            return WrapHandler((Action<C, T, int>)Wrapped, requireAuthentication);
+            return WrapHandler((Action<C, T, int>)Wrapped, requireAuthentication, exceptionsDisconnect);
         }
     }
 }

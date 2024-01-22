@@ -31,13 +31,17 @@ public class LRMFunctionTest : MonoBehaviour
         _LRM.extraServerData = "Default Server Data";
         _LRM.maxServerPlayers = 5;
         _LRM.isPublicServer = true;
-        NetworkManager.singleton.StartHost();
+        NetworkManager.singleton.StartHost(); 
         yield return new WaitUntil(() => _LRM.serverId.Length > 4);
         DisplayText($"<color=lime>Room created! ID: {_LRM.serverId}</color>");
         DisplayText("<color=cyan>Requesting Server List...</color>");
         _serverListUpdated = false;
-        _LRM.RequestServerList();
-        yield return new WaitUntil(() => _serverListUpdated);
+        do
+        {
+            _LRM.RequestServerList();
+            yield return new WaitUntil(() => _serverListUpdated);
+        } while (_LRM.relayServerList.Count == 0);
+        DisplayText($"<color=cyan>Server Count {_LRM.relayServerList.Count} </color>");
         foreach (var server in _LRM.relayServerList)
             DisplayText($"Got Server: [{server.serverId}/{server.appId}] {server.serverName}, {server.serverData}, {server.maxPlayers}");
         _serverListUpdated = false;
@@ -49,6 +53,7 @@ public class LRMFunctionTest : MonoBehaviour
         DisplayText("Requesting Server List...");
         _LRM.RequestServerList();
         yield return new WaitUntil(() => _serverListUpdated);
+        DisplayText($"<color=cyan>Server Count {_LRM.relayServerList.Count} </color>");
         foreach (var server in _LRM.relayServerList)
             DisplayText($"Got Server: [{server.serverId}/{server.appId}] {server.serverName}, {server.serverData}, {server.maxPlayers}");
     }

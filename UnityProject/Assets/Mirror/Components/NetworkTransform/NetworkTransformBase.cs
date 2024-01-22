@@ -32,12 +32,6 @@ namespace Mirror
         [Tooltip("The Transform component to sync. May be on on this GameObject, or on a child.")]
         public Transform target;
 
-        // TODO SyncDirection { ClientToServer, ServerToClient } is easier?
-        // Deprecated 2022-10-25
-        [Obsolete("NetworkTransform clientAuthority was replaced with syncDirection. To enable client authority, set SyncDirection to ClientToServer in the Inspector.")]
-        [Header("[Obsolete]")] // Unity doesn't show obsolete warning for fields. do it manually.
-        [Tooltip("Obsolete: NetworkTransform clientAuthority was replaced with syncDirection. To enable client authority, set SyncDirection to ClientToServer in the Inspector.")]
-        public bool clientAuthority;
         // Is this a client with authority over this transform?
         // This component could be on the player object or any object that has been assigned authority to this client.
         protected bool IsClientWithAuthority => isClient && authority;
@@ -119,34 +113,23 @@ namespace Mirror
             // Unity doesn't support setting world scale.
             // OnValidate force disables syncScale in world mode.
             if (coordinateSpace == CoordinateSpace.World) syncScale = false;
-
-            // obsolete clientAuthority compatibility:
-            // if it was used, then set the new SyncDirection automatically.
-            // if it wasn't used, then don't touch syncDirection.
-#pragma warning disable CS0618
-            if (clientAuthority)
-            {
-                syncDirection = SyncDirection.ClientToServer;
-                Debug.LogWarning($"{name}'s NetworkTransform component has obsolete .clientAuthority enabled. Please disable it and set SyncDirection to ClientToServer instead.");
-            }
-#pragma warning restore CS0618
         }
 
         // snapshot functions //////////////////////////////////////////////////
         // get local/world position
-        protected Vector3 GetPosition() =>
+        protected virtual Vector3 GetPosition() =>
             coordinateSpace == CoordinateSpace.Local ? target.localPosition : target.position;
 
         // get local/world rotation
-        protected Quaternion GetRotation() =>
+        protected virtual Quaternion GetRotation() =>
             coordinateSpace == CoordinateSpace.Local ? target.localRotation : target.rotation;
 
         // get local/world scale
-        protected Vector3 GetScale() =>
-            coordinateSpace == CoordinateSpace.Local ? target.localScale    : target.lossyScale;
+        protected virtual Vector3 GetScale() =>
+            coordinateSpace == CoordinateSpace.Local ? target.localScale : target.lossyScale;
 
         // set local/world position
-        protected void SetPosition(Vector3 position)
+        protected virtual void SetPosition(Vector3 position)
         {
             if (coordinateSpace == CoordinateSpace.Local)
                 target.localPosition = position;
@@ -155,7 +138,7 @@ namespace Mirror
         }
 
         // set local/world rotation
-        protected void SetRotation(Quaternion rotation)
+        protected virtual void SetRotation(Quaternion rotation)
         {
             if (coordinateSpace == CoordinateSpace.Local)
                 target.localRotation = rotation;
@@ -164,14 +147,14 @@ namespace Mirror
         }
 
         // set local/world position
-        protected void SetScale(Vector3 scale)
+        protected virtual void SetScale(Vector3 scale)
         {
             if (coordinateSpace == CoordinateSpace.Local)
                 target.localScale = scale;
             // Unity doesn't support setting world scale.
             // OnValidate disables syncScale in world mode.
             // else
-                // target.lossyScale = scale; // TODO
+            // target.lossyScale = scale; // TODO
         }
 
         // construct a snapshot of the current state
@@ -203,7 +186,7 @@ namespace Mirror
 
             if (!position.HasValue) position = snapshots.Count > 0 ? snapshots.Values[snapshots.Count - 1].position : GetPosition();
             if (!rotation.HasValue) rotation = snapshots.Count > 0 ? snapshots.Values[snapshots.Count - 1].rotation : GetRotation();
-            if (!scale.HasValue)    scale    = snapshots.Count > 0 ? snapshots.Values[snapshots.Count - 1].scale    : GetScale();
+            if (!scale.HasValue) scale = snapshots.Count > 0 ? snapshots.Values[snapshots.Count - 1].scale : GetScale();
 
             // insert transform snapshot
             SnapshotInterpolation.InsertIfNotExists(
@@ -242,7 +225,7 @@ namespace Mirror
             // interpolate parts
             if (syncPosition) SetPosition(interpolatePosition ? interpolated.position : endGoal.position);
             if (syncRotation) SetRotation(interpolateRotation ? interpolated.rotation : endGoal.rotation);
-            if (syncScale)       SetScale(interpolateScale    ? interpolated.scale    : endGoal.scale);
+            if (syncScale) SetScale(interpolateScale ? interpolated.scale : endGoal.scale);
         }
 
         // client->server teleport to force position without interpolation.
@@ -330,12 +313,21 @@ namespace Mirror
         // common Teleport code for client->server and server->client
         protected virtual void OnTeleport(Vector3 destination)
         {
-            // reset any in-progress interpolation & buffers
-            Reset();
-
             // set the new position.
             // interpolation will automatically continue.
             target.position = destination;
+
+            // reset interpolation to immediately jump to the new position.
+            // do not call Reset() here, this would cause delta compression to
+            // get out of sync for NetworkTransformReliable because NTReliable's
+            // 'override Reset()' resets lastDe/SerializedPosition:
+            // https://github.com/MirrorNetworking/Mirror/issues/3588
+            // because client's next OnSerialize() will delta compress,
+            // but server's last delta will have been reset, causing offsets.
+            //
+            // instead, simply clear snapshots.
+            serverSnapshots.Clear();
+            clientSnapshots.Clear();
 
             // TODO
             // what if we still receive a snapshot from before the interpolation?
@@ -346,13 +338,22 @@ namespace Mirror
         // common Teleport code for client->server and server->client
         protected virtual void OnTeleport(Vector3 destination, Quaternion rotation)
         {
-            // reset any in-progress interpolation & buffers
-            Reset();
-
             // set the new position.
             // interpolation will automatically continue.
             target.position = destination;
             target.rotation = rotation;
+
+            // reset interpolation to immediately jump to the new position.
+            // do not call Reset() here, this would cause delta compression to
+            // get out of sync for NetworkTransformReliable because NTReliable's
+            // 'override Reset()' resets lastDe/SerializedPosition:
+            // https://github.com/MirrorNetworking/Mirror/issues/3588
+            // because client's next OnSerialize() will delta compress,
+            // but server's last delta will have been reset, causing offsets.
+            //
+            // instead, simply clear snapshots.
+            serverSnapshots.Clear();
+            clientSnapshots.Clear();
 
             // TODO
             // what if we still receive a snapshot from before the interpolation?

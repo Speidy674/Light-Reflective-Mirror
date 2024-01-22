@@ -29,9 +29,9 @@ namespace Mirror
         // used to know if the first two snapshots are old enough to start.
         public double localTime { get; set; }
 
-        public Vector3    position;
+        public Vector3 position;
         public Quaternion rotation;
-        public Vector3    scale;
+        public Vector3 scale;
 
         public TransformSnapshot(double remoteTime, double localTime, Vector3 position, Quaternion rotation, Vector3 scale)
         {
@@ -61,5 +61,8 @@ namespace Mirror
                 Vector3.LerpUnclamped(from.scale, to.scale, (float)t)
             );
         }
+
+        public override string ToString() =>
+            $"TransformSnapshot(remoteTime={remoteTime:F2}, localTime={localTime:F2}, pos={position}, rot={rotation}, scale={scale})";
     }
 }

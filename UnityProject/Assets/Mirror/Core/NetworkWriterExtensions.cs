@@ -82,14 +82,8 @@ namespace Mirror
             writer.Position += written;
         }
 
-        public static void WriteBytesAndSizeSegment(this NetworkWriter writer, ArraySegment<byte> buffer)
-        {
-            writer.WriteBytesAndSize(buffer.Array, buffer.Offset, buffer.Count);
-        }
-
         // Weaver needs a write function with just one byte[] parameter
         // (we don't name it .Write(byte[]) because it's really a WriteBytesAndSize since we write size / null info too)
-
         public static void WriteBytesAndSize(this NetworkWriter writer, byte[] buffer)
         {
             // buffer might be null, so we can't use .Length in that case
@@ -98,7 +92,6 @@ namespace Mirror
 
         // for byte arrays with dynamic size, where the reader doesn't know how many will come
         // (like an inventory with different items etc.)
-
         public static void WriteBytesAndSize(this NetworkWriter writer, byte[] buffer, int offset, int count)
         {
             // null is supported because [SyncVar]s might be structs with null byte[] arrays
@@ -113,6 +106,13 @@ namespace Mirror
             writer.WriteBytes(buffer, offset, count);
         }
 
+        // writes ArraySegment of byte (most common type) and size header
+        public static void WriteArraySegmentAndSize(this NetworkWriter writer, ArraySegment<byte> segment)
+        {
+            writer.WriteBytesAndSize(segment.Array, segment.Offset, segment.Count);
+        }
+
+        // writes ArraySegment of any type, and size header
         public static void WriteArraySegment<T>(this NetworkWriter writer, ArraySegment<T> segment)
         {
             int length = segment.Count;
@@ -184,6 +184,19 @@ namespace Mirror
             writer.WriteBool(value.HasValue);
             if (value.HasValue)
                 writer.WriteRay(value.Value);
+        }
+
+        // LayerMask is a struct with properties instead of fields
+        public static void WriteLayerMask(this NetworkWriter writer, LayerMask layerMask)
+        {
+            // 32 layers as a flags enum, max value of 496, we only need a UShort.
+            writer.WriteUShort((ushort)layerMask.value);
+        }
+        public static void WriteLayerMaskNullable(this NetworkWriter writer, LayerMask? layerMask)
+        {
+            writer.WriteBool(layerMask.HasValue);
+            if (layerMask.HasValue)
+                writer.WriteLayerMask(layerMask.Value);
         }
 
         public static void WriteMatrix4x4(this NetworkWriter writer, Matrix4x4 value) => writer.WriteBlittable(value);
@@ -272,7 +285,9 @@ namespace Mirror
             }
             else
             {
-                Debug.LogWarning($"NetworkWriter {value} has no NetworkIdentity");
+                // if users attempt to pass a transform without NetworkIdentity
+                // to a [Command] or [SyncVar], it should show an obvious warning.
+                Debug.LogWarning($"Attempted to sync a Transform ({value}) which isn't networked. Transforms without a NetworkIdentity component can't be synced.");
                 writer.WriteUInt(0);
             }
         }
@@ -287,7 +302,7 @@ namespace Mirror
 
             // warn if the GameObject doesn't have a NetworkIdentity,
             if (!value.TryGetComponent(out NetworkIdentity identity))
-                Debug.LogWarning($"NetworkWriter {value} has no NetworkIdentity");
+                Debug.LogWarning($"Attempted to sync a GameObject ({value}) which isn't networked. GameObject without a NetworkIdentity component can't be synced.");
 
             // serialize the correct amount of data in any case to make sure
             // that the other end can read the expected amount of data too.

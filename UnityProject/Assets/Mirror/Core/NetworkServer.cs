@@ -52,10 +52,6 @@ namespace Mirror
         // see also: https://github.com/vis2k/Mirror/pull/2595
         public static bool dontListen;
 
-        // Deprecated 2022-12-12
-        [Obsolete("NetworkServer.localClientActive was renamed to .activeHost to be more obvious")]
-        public static bool localClientActive => activeHost;
-
         /// <summary>active checks if the server has been started either has standalone or as host server.</summary>
         public static bool active { get; internal set; }
 
@@ -69,6 +65,15 @@ namespace Mirror
         // interest management component (optional)
         // by default, everyone observes everyone
         public static InterestManagementBase aoi;
+
+        // For security, it is recommended to disconnect a player if a networked
+        // action triggers an exception\nThis could prevent components being
+        // accessed in an undefined state, which may be an attack vector for
+        // exploits.
+        //
+        // However, some games may want to allow exceptions in order to not
+        // interrupt the player's experience.
+        public static bool exceptionsDisconnect = true; // security by default
 
         // Mirror global disconnect inactive option, independent of Transport.
         // not all Transports do this properly, and it's easiest to configure this just once.
@@ -112,7 +117,22 @@ namespace Mirror
             if (!dontListen)
             {
                 Transport.active.ServerStart();
-                //Debug.Log("Server started listening");
+
+                if (Transport.active is PortTransport portTransport)
+                {
+                    if (Utils.IsHeadless())
+                    {
+#if !UNITY_EDITOR
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.WriteLine($"Server listening on port {portTransport.Port}");
+                        Console.ResetColor();
+#else
+                        Debug.Log($"Server listening on port {portTransport.Port}");
+#endif
+                    }
+                }
+                else
+                    Debug.Log("Server started listening");
             }
 
             active = true;
@@ -799,7 +819,7 @@ namespace Mirror
             // register Id <> Type in lookup for debugging.
             NetworkMessages.Lookup[msgType] = typeof(T);
 
-            handlers[msgType] = NetworkMessages.WrapHandler(handler, requireAuthentication);
+            handlers[msgType] = NetworkMessages.WrapHandler(handler, requireAuthentication, exceptionsDisconnect);
         }
 
         /// <summary>Register a handler for message type T. Most should require authentication.</summary>
@@ -816,7 +836,7 @@ namespace Mirror
             // register Id <> Type in lookup for debugging.
             NetworkMessages.Lookup[msgType] = typeof(T);
 
-            handlers[msgType] = NetworkMessages.WrapHandler(handler, requireAuthentication);
+            handlers[msgType] = NetworkMessages.WrapHandler(handler, requireAuthentication, exceptionsDisconnect);
         }
 
         /// <summary>Replace a handler for message type T. Most should require authentication.</summary>
@@ -831,7 +851,7 @@ namespace Mirror
             where T : struct, NetworkMessage
         {
             ushort msgType = NetworkMessageId<T>.Id;
-            handlers[msgType] = NetworkMessages.WrapHandler(handler, requireAuthentication);
+            handlers[msgType] = NetworkMessages.WrapHandler(handler, requireAuthentication, exceptionsDisconnect);
         }
 
         /// <summary>Unregister a handler for a message type T.</summary>
@@ -1483,6 +1503,14 @@ namespace Mirror
         {
             // Debug.Log($"DestroyObject instance:{identity.netId}");
 
+            // NetworkServer.Destroy should only be called on server or host.
+            // on client, show a warning to explain what it does.
+            if (!active)
+            {
+                Debug.LogWarning("NetworkServer.Destroy() called without an active server. Servers can only destroy while active, clients can only ask the server to destroy (for example, with a [Command]), after which the server may decide to destroy the object and broadcast the change to all clients.");
+                return;
+            }
+
             // only call OnRebuildObservers while active,
             // not while shutting down
             // (https://github.com/vis2k/Mirror/issues/2977)
@@ -1854,11 +1882,5 @@ namespace Mirror
                 fullUpdateDuration.End();
             }
         }
-
-        // calls OnStartClient for all SERVER objects in host mode once.
-        // client doesn't get spawn messages for those, so need to call manually.
-        // Deprecated 2022-12-12
-        [Obsolete("NetworkServer.ActivateHostScene was moved to HostMode.ActivateHostScene")]
-        public static void ActivateHostScene() => HostMode.ActivateHostScene();
     }
 }

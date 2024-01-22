@@ -1,4 +1,5 @@
 ﻿using Mirror;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -32,7 +33,7 @@ namespace LightReflectiveMirror
 
                 yield return webRequest.SendWebRequest();
                 var result = webRequest.downloadHandler.text;
-                
+
 #if UNITY_2020_1_OR_NEWER
                 switch (webRequest.result)
                 {
@@ -40,6 +41,7 @@ namespace LightReflectiveMirror
                     case UnityWebRequest.Result.DataProcessingError:
                     case UnityWebRequest.Result.ProtocolError:
                         Debug.LogWarning("LRM | Network Error while getting a relay to join from Load Balancer.");
+                        Disconnected();
                         break;
                     case UnityWebRequest.Result.Success:
                         var parsedAddress = JsonUtility.FromJson<RelayAddress>(result);
@@ -51,6 +53,7 @@ namespace LightReflectiveMirror
                 if (webRequest.isNetworkError || webRequest.isHttpError)
                 {
                     Debug.LogWarning("LRM | Network Error while getting a relay to join from Load Balancer.");
+                    Disconnected();
                 }
                 else
                 {

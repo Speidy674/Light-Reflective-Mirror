@@ -238,6 +238,26 @@ namespace kcp2k
         public override int GetBatchThreshold(int channelId) =>
             KcpPeer.UnreliableMaxMessageSize(config.Mtu);
 
+        // server statistics
+        // LONG to avoid int overflows with connections.Sum.
+        // see also: https://github.com/vis2k/Mirror/pull/2777
+        public long GetAverageMaxSendRate() =>
+            server.connections.Count > 0
+                ? server.connections.Values.Sum(conn => conn.MaxSendRate) / server.connections.Count
+                : 0;
+        public long GetAverageMaxReceiveRate() =>
+            server.connections.Count > 0
+                ? server.connections.Values.Sum(conn => conn.MaxReceiveRate) / server.connections.Count
+                : 0;
+        long GetTotalSendQueue() =>
+            server.connections.Values.Sum(conn => conn.SendQueueCount);
+        long GetTotalReceiveQueue() =>
+            server.connections.Values.Sum(conn => conn.ReceiveQueueCount);
+        long GetTotalSendBuffer() =>
+            server.connections.Values.Sum(conn => conn.SendBufferCount);
+        long GetTotalReceiveBuffer() =>
+            server.connections.Values.Sum(conn => conn.ReceiveBufferCount);
+
         // PrettyBytes function from DOTSNET
         // pretty prints bytes as KB/MB/GB/etc.
         // long to support > 2GB
@@ -257,7 +277,8 @@ namespace kcp2k
             return $"{(bytes / (1024f * 1024f * 1024f)):F2} GB";
         }
 
-        public override string ToString() => "KCP";
+
+        public override string ToString() => $"KCP {port}";
     }
 }
 //#endif MIRROR <- commented out because MIRROR isn't defined on first import yet
