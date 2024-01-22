@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.Intrinsics.X86;
 using System.Threading.Tasks;
 using HttpStatusCode = Grapevine.HttpStatusCode;
 
@@ -48,6 +49,7 @@ namespace LightReflectiveMirror.LoadBalancing
                     var _gamePort = Convert.ToUInt16(gamePort);
                     var _endpointPort = Convert.ToUInt16(endpointPort);
                     await Program.instance.AddServer(address, _gamePort, _endpointPort, publicIP, regionId);
+                    startupdateServerList();
                 }
                 catch
                 {
@@ -73,33 +75,7 @@ namespace LightReflectiveMirror.LoadBalancing
 
             if (!string.IsNullOrEmpty(auth) && auth == Program.conf.AuthKey)
             {
-                var relays = Program.instance.availableRelayServers.ToList();
-                ClearAllServersLists();
-                List<Room> requestedRooms;
-
-                Program.cachedRooms.Clear();
-
-                for (int i = 0; i < relays.Count; i++)
-                {
-                    requestedRooms = await Program.instance.RequestServerListFromNode(relays[i].Key.address, relays[i].Key.endpointPort);
-                    _regionRooms[LRMRegions.Any].AddRange(requestedRooms);
-                    _regionRooms[relays[i].Key.serverRegion].AddRange(requestedRooms);
-
-                    List<List<Room>> _appRooms = requestedRooms.GroupBy(x => x.appId).Select(grp => grp.ToList()).ToList();
-
-                    _appRooms.ForEach((rooms) =>
-                    {
-                        string jsonRooms = JsonConvert.SerializeObject(rooms, Formatting.Indented);
-                        _regionRoomsAppId[LRMRegions.Any].Add(rooms.First().appId, rooms);
-                    });
-
-                    for (int x = 0; x < requestedRooms.Count; x++)
-                        if (!Program.cachedRooms.TryAdd(requestedRooms[x].serverId, requestedRooms[x]))
-                            Logger.ForceLogMessage("Conflicting Rooms! (That's ok)", ConsoleColor.Yellow);
-                }
-
-                Logger.WriteLogMessage($"Try Calling CacheAllServers", ConsoleColor.Cyan);
-                CacheAllServers();
+                startupdateServerList();
                 await context.Response.SendResponseAsync(HttpStatusCode.Ok);
             }
             else
@@ -256,7 +232,7 @@ namespace LightReflectiveMirror.LoadBalancing
 
     public partial class EndpointServer
     {
-        public bool Start(ushort port = 7070)
+        public bool Start(ushort port = 7070, bool ssl = false)
         {
             try
             {
@@ -275,8 +251,16 @@ namespace LightReflectiveMirror.LoadBalancing
                     services.Configure<LoggerFilterOptions>(options => options.MinLevel = LogLevel.None);
                 }, (server) =>
                 {
-                    foreach (string ip in GetLocalIps())
-                        server.Prefixes.Add($"http://{ip}:{port}/");
+
+                    if (ssl)
+                    {
+                        server.Prefixes.Add($"https://+:{port}/");
+                    }
+                    else
+                    {
+                        server.Prefixes.Add($"http://+:{port}/");
+                    }
+
                 }).Build();
 
                 server.Router.Options.SendExceptionMessages = true;
