@@ -28,7 +28,7 @@ namespace LightReflectiveMirror.LoadBalancing
 
         public string GenerateServerID()
         {
-            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            string chars = conf.RandomlyGeneratedIDChars;
             var randomID = "";
             var random = _cachedRandom;
 

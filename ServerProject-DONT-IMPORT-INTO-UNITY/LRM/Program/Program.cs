@@ -51,6 +51,7 @@ namespace LightReflectiveMirror
                     conf.UpdateLoopTime = int.Parse(Environment.GetEnvironmentVariable("UPDATE_LOOP_TIME") ?? "10");
                     conf.UpdateHeartbeatInterval = int.Parse(Environment.GetEnvironmentVariable("UPDATE_HEARTBEAT_INTERVAL") ?? "100");
                     conf.RandomlyGeneratedIDLength = int.Parse(Environment.GetEnvironmentVariable("RANDOMLY_GENERATED_ID_LENGTH") ?? "5");
+                    conf.RandomlyGeneratedIDChars = Environment.GetEnvironmentVariable("RANDOMLY_GENERATED_ID_CHARS") ?? "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvw";
                     conf.UseEndpoint = bool.Parse(Environment.GetEnvironmentVariable("USE_ENDPOINT") ?? "true");
                     conf.EndpointPort = ushort.Parse(Environment.GetEnvironmentVariable("ENDPOINT_PORT") ?? "8080");
                     conf.EndpointServerList = bool.Parse(Environment.GetEnvironmentVariable("ENDPOINT_SERVERLIST") ?? "true");
@@ -135,7 +136,7 @@ namespace LightReflectiveMirror
 
                     if (conf.UseLoadBalancer)
                     {
-                        if (DateTime.Now > Endpoint.lastPing.AddSeconds(60))
+                        if (DateTime.Now >= Endpoint.lastPing.AddSeconds(15))
                         {
                             // Dont await that on main thread. It would cause a lag spike for clients.
 #pragma warning disable CS4014
@@ -182,7 +183,6 @@ namespace LightReflectiveMirror
                 ConfigureHeaders(endpointPort, gamePort, authReq);
 
                 var res = await httpClient.SendAsync(authReq);
-
                 return true;
             }
             catch

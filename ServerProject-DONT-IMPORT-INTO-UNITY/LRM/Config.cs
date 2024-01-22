@@ -16,10 +16,11 @@ namespace LightReflectiveMirror
         public ushort TransportPort = 7777;
         public int UpdateLoopTime = 10;
         public int UpdateHeartbeatInterval = 100;
- 
+
         // this wont be used if you are using load balancer
         // load balancer will generate instead.
         public int RandomlyGeneratedIDLength = 5;
+        public string RandomlyGeneratedIDChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvw";
 
         //========================
         // Endpoint REST API Settings

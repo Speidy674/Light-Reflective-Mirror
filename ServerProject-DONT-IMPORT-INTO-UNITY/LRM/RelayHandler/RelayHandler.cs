@@ -24,7 +24,7 @@ namespace LightReflectiveMirror
 
         private string GenerateRoomID()
         {
-            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            string chars = Program.conf.RandomlyGeneratedIDChars;
             var randomID = "";
             var random = _cachedRandom;
 
